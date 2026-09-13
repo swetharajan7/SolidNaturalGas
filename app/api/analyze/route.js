@@ -38,22 +38,48 @@ export async function POST(request) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(data);
+      console.error("Nebius error:", data);
+
       return Response.json(
-        { error: "Nebius inference request failed.", details: data },
+        {
+          error: "Nebius inference request failed.",
+          details: data
+        },
         { status: response.status }
       );
     }
 
+    const message = data.choices?.[0]?.message;
+
+    console.log(
+      "Nebius response:",
+      JSON.stringify(data, null, 2)
+    );
+
     return Response.json({
-      result: data.choices?.[0]?.message?.content
+      result:
+        message?.content ||
+        message?.reasoning_content ||
+        null,
+      finish_reason:
+        data.choices?.[0]?.finish_reason ||
+        null,
+      usage:
+        data.usage ||
+        null,
+      debug:
+        message ||
+        null
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Route error:", error);
 
     return Response.json(
-      { error: "Unable to analyze hypothesis." },
+      {
+        error: "Unable to analyze hypothesis.",
+        details: error.message
+      },
       { status: 500 }
     );
   }
