@@ -54,7 +54,7 @@ export default function Home() {
         }}
       >
         <Image
-          src="/solid-natural-gas-logo.jpeg"
+          src="/solid-natural-gas-icon.jpeg"
           alt="Solid Natural Gas"
           width={240}
           height={340}
