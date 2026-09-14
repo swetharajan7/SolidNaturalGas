@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 
 export default function Home() {
@@ -10,6 +10,32 @@ export default function Home() {
 
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [henryHub, setHenryHub] = useState([]);
+  const [henryHubError, setHenryHubError] = useState("");
+
+  useEffect(() => {
+    async function loadHenryHub() {
+      try {
+        const response = await fetch("/api/henry-hub");
+        const data = await response.json();
+
+        if (!response.ok) {
+          setHenryHubError(
+            data.error || "Unable to load Henry Hub data."
+          );
+          return;
+        }
+
+        setHenryHub(data.series || []);
+      } catch (error) {
+        console.error("Henry Hub load failed:", error);
+        setHenryHubError("Unable to load Henry Hub data.");
+      }
+    }
+
+    loadHenryHub();
+  }, []);
 
   async function analyze() {
     setLoading(true);
@@ -37,6 +63,9 @@ export default function Home() {
 
     setLoading(false);
   }
+
+  const latestHenryHub =
+    henryHub.length > 0 ? henryHub[0] : null;
 
   return (
     <main
@@ -75,6 +104,72 @@ export default function Home() {
           AI-native global gas intelligence.
         </p>
       </header>
+
+      <section
+        style={{
+          marginBottom: "30px",
+          padding: "20px",
+          border: "1px solid #d9e0e8",
+          borderRadius: "8px",
+          background: "#ffffff"
+        }}
+      >
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            color: "#586474"
+          }}
+        >
+          HENRY HUB
+        </div>
+
+        {latestHenryHub ? (
+          <>
+            <div
+              style={{
+                fontSize: "30px",
+                fontWeight: "700",
+                marginTop: "6px",
+                color: "#0B1F3B"
+              }}
+            >
+              ${latestHenryHub.value.toFixed(2)} / MMBtu
+            </div>
+
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#7a8593",
+                marginTop: "4px"
+              }}
+            >
+              Daily spot · {latestHenryHub.date} · Source: U.S. EIA
+            </div>
+          </>
+        ) : henryHubError ? (
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "14px",
+              color: "#8a4b4b"
+            }}
+          >
+            {henryHubError}
+          </div>
+        ) : (
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "14px",
+              color: "#7a8593"
+            }}
+          >
+            Loading latest Henry Hub price...
+          </div>
+        )}
+      </section>
 
       <section
         style={{
