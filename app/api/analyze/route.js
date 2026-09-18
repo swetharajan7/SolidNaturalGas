@@ -23,7 +23,8 @@ export async function POST(request) {
      * or if KV isn't reachable for some reason.
      */
 
-    const kvKey = keyFor(hypothesis);
+        const kvKey = keyFor(hypothesis);
+    const historyKey = kvKey.replace(/^confidence:/, "history:");
     let startingConfidence = 50;
 
     try {
@@ -35,6 +36,11 @@ export async function POST(request) {
       console.error("KV read failed, defaulting to 50:", kvError);
     }
 
+    try {
+      await kv.sadd("tracked:hypotheses", hypothesis);
+    } catch (kvError) {
+      console.error("KV sadd (tracked list) failed:", kvError);
+    }
     /*
      * STEP 1
      * Search the live web with Tavily.
