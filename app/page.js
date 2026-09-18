@@ -178,7 +178,7 @@ export default function Home() {
                 marginTop: "4px"
               }}
             >
-              Daily spot · {latestHenryHub.date} · Source: U.S. EIA
+              Daily spot · {latestHenryHub.date} · Live evidence via Tavily + Nemotron
             </div>
           </>
         ) : henryHubError ? (
