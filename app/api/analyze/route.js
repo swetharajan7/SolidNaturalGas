@@ -231,8 +231,8 @@ Evaluate the hypothesis using the evidence above.
     }
 
     // Strip the machine-readable line so it doesn't show up in the UI
-    const result = rawResult
-      .replace(/CONFIDENCE_SCORE:\s*\d{1,3}\s*$/i, "")
+     const result = rawResult
+      .replace(/^\s*\*{0,2}\s*CONFIDENCE_SCORE:\s*\d{1,3}\s*\*{0,2}\s*$/gim, "")
       .trim();
 
     /*
