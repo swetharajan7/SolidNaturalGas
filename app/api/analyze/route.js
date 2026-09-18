@@ -23,7 +23,7 @@ export async function POST(request) {
      * or if KV isn't reachable for some reason.
      */
 
-        const kvKey = keyFor(hypothesis);
+    const kvKey = keyFor(hypothesis);
     const historyKey = kvKey.replace(/^confidence:/, "history:");
     let startingConfidence = 50;
 
@@ -36,22 +36,12 @@ export async function POST(request) {
       console.error("KV read failed, defaulting to 50:", kvError);
     }
 
-        const lastRun = new Date().toISOString();
-
     try {
-      await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
-      await kv.lpush(
-        historyKey,
-        JSON.stringify({
-          confidence: newConfidence,
-          delta: newConfidence - startingConfidence,
-          timestamp: lastRun
-        })
-      );
-      await kv.ltrim(historyKey, 0, 49);
+      await kv.sadd("tracked:hypotheses", hypothesis);
     } catch (kvError) {
-      console.error("KV write failed (result still returned):", kvError);
+      console.error("KV sadd (tracked list) failed:", kvError);
     }
+
     /*
      * STEP 1
      * Search the live web with Tavily.
@@ -248,23 +238,30 @@ Evaluate the hypothesis using the evidence above.
     }
 
     // Strip the machine-readable line so it doesn't show up in the UI
-     const result = rawResult
+    const result = rawResult
       .replace(/^\s*\*{0,2}\s*CONFIDENCE_SCORE:\s*\d{1,3}\s*\*{0,2}\s*$/gim, "")
       .trim();
 
     /*
      * STEP 5
-     * Persist the new confidence in KV, keyed by this hypothesis,
-     * so the next run (from this page OR from the cron job) continues
-     * from here instead of resetting to 50.
+     * Persist the new confidence + append to history in KV, keyed by
+     * this hypothesis, so the next run (from this page, the dashboard,
+     * OR the cron job) continues from here instead of resetting to 50.
      */
 
+    const lastRun = new Date().toISOString();
+
     try {
-      await kv.set(kvKey, {
-        confidence: newConfidence,
-        hypothesis,
-        lastRun: new Date().toISOString()
-      });
+      await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
+      await kv.lpush(
+        historyKey,
+        JSON.stringify({
+          confidence: newConfidence,
+          delta: newConfidence - startingConfidence,
+          timestamp: lastRun
+        })
+      );
+      await kv.ltrim(historyKey, 0, 49);
     } catch (kvError) {
       console.error("KV write failed (result still returned):", kvError);
     }
