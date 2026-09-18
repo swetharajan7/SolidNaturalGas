@@ -62,12 +62,14 @@ export default function Home() {
         "No analysis was returned."
       );
 
-      if (typeof data.confidence === "number") {
+           if (typeof data.confidence === "number") {
         setConfidence(data.confidence);
         setConfidenceDelta(
           typeof data.confidenceDelta === "number" ? data.confidenceDelta : 0
         );
       }
+      setSources(data.sources || []);
+      loadDashboard();
     } catch {
       setResult("Unable to reach the analysis service.");
     }
