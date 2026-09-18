@@ -42,6 +42,8 @@ export default function Home() {
   async function analyze() {
     setLoading(true);
     setResult("");
+    setConfidence(null);
+    setConfidenceDelta(0);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -59,6 +61,13 @@ export default function Home() {
         data.error ||
         "No analysis was returned."
       );
+
+      if (typeof data.confidence === "number") {
+        setConfidence(data.confidence);
+        setConfidenceDelta(
+          typeof data.confidenceDelta === "number" ? data.confidenceDelta : 0
+        );
+      }
     } catch {
       setResult("Unable to reach the analysis service.");
     }
