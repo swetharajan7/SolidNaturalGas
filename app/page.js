@@ -3,10 +3,42 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
+function Sparkline({ data, width = 100, height = 32 }) {
+  if (!data || data.length < 2) {
+    return (
+      <div style={{ fontSize: "11px", color: "#9aa4b0" }}>Not enough history</div>
+    );
+  }
+
+  const values = data.map((d) => d.confidence);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * width;
+      const y = height - ((v - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const color = values[values.length - 1] >= values[0] ? "#1e7d34" : "#a13a2c";
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [hypothesis, setHypothesis] = useState(
     "European LNG spot prices will strengthen over the next 30 days."
   );
+
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const [confidence, setConfidence] = useState(null);
   const [confidenceDelta, setConfidenceDelta] = useState(0);
@@ -15,6 +47,16 @@ export default function Home() {
 
   const [henryHub, setHenryHub] = useState([]);
   const [henryHubError, setHenryHubError] = useState("");
+
+  async function loadDashboard() {
+    try {
+      const response = await fetch("/api/dashboard");
+      const data = await response.json();
+      setDashboard(data.hypotheses || []);
+    } catch (error) {
+      console.error("Dashboard load failed:", error);
+    }
+  }
 
   useEffect(() => {
     async function loadHenryHub() {
@@ -37,6 +79,7 @@ export default function Home() {
     }
 
     loadHenryHub();
+    loadDashboard();
   }, []);
 
   async function analyze() {
@@ -62,7 +105,7 @@ export default function Home() {
         "No analysis was returned."
       );
 
-           if (typeof data.confidence === "number") {
+      if (typeof data.confidence === "number") {
         setConfidence(data.confidence);
         setConfidenceDelta(
           typeof data.confidenceDelta === "number" ? data.confidenceDelta : 0
@@ -90,50 +133,50 @@ export default function Home() {
       }}
     >
       <nav
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-    padding: "22px 0",
-    borderBottom: "1px solid #d9e0e8",
-    marginBottom: "35px"
-  }}
->
-  <div
-    style={{
-      width: "60px",
-      height: "60px",
-      borderRadius: "50%",
-      background: "linear-gradient(135deg, #eaf3ff 0%, #fff0e0 100%)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0
-    }}
-  >
-    <Image
-      src="/logo.png"
-      alt="Solid Natural Gas"
-      width={48}
-      height={48}
-      priority
-    />
-  </div>
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "14px",
+          padding: "22px 0",
+          borderBottom: "1px solid #d9e0e8",
+          marginBottom: "35px"
+        }}
+      >
+        <div
+          style={{
+            width: "60px",
+            height: "60px",
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #eaf3ff 0%, #fff0e0 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0
+          }}
+        >
+          <Image
+            src="/logo.png"
+            alt="Solid Natural Gas"
+            width={48}
+            height={48}
+            priority
+          />
+        </div>
 
-  <span
-    style={{
-      fontSize: "24px",
-      fontWeight: "800",
-      letterSpacing: "-0.02em",
-      background: "linear-gradient(90deg, #d85a1e 0%, #0B1F3B 60%)",
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-      backgroundClip: "text"
-    }}
-  >
-    Solid Natural Gas
-  </span>
-</nav>
+        <span
+          style={{
+            fontSize: "24px",
+            fontWeight: "800",
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(90deg, #d85a1e 0%, #0B1F3B 60%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text"
+          }}
+        >
+          Solid Natural Gas
+        </span>
+      </nav>
 
       <header
         style={{
@@ -217,6 +260,69 @@ export default function Home() {
         )}
       </section>
 
+      {dashboard.length > 0 && (
+        <section
+          style={{
+            marginBottom: "30px",
+            padding: "20px",
+            border: "1px solid #d9e0e8",
+            borderRadius: "8px",
+            background: "#ffffff"
+          }}
+        >
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: "700",
+              letterSpacing: "0.08em",
+              color: "#586474",
+              marginBottom: "14px"
+            }}
+          >
+            TRACKED HYPOTHESES
+          </div>
+
+          {dashboard.map((item) => (
+            <div
+              key={item.hypothesis}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "16px",
+                padding: "12px 0",
+                borderTop: "1px solid #eef1f4"
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "15px", color: "#0B1F3B" }}>
+                  {item.hypothesis}
+                </div>
+                {item.lastRun && (
+                  <div style={{ fontSize: "12px", color: "#9aa4b0", marginTop: "2px" }}>
+                    Last checked {new Date(item.lastRun).toLocaleString()}
+                  </div>
+                )}
+              </div>
+
+              <Sparkline data={item.history} />
+
+              <div
+                style={{
+                  fontSize: "22px",
+                  fontWeight: "800",
+                  color: "#0B1F3B",
+                  minWidth: "56px",
+                  textAlign: "right"
+                }}
+              >
+                {item.confidence ?? "—"}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
       <section
         style={{
           borderTop: "1px solid #d9e0e8",
@@ -276,7 +382,7 @@ export default function Home() {
         </button>
       </section>
 
-       {result && (
+      {result && (
         <section
           style={{
             marginTop: "45px",
@@ -344,7 +450,7 @@ export default function Home() {
 
           <h2>Research Assessment</h2>
 
-                    <div
+          <div
             style={{
               whiteSpace: "pre-wrap",
               lineHeight: "1.7",
