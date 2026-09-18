@@ -63,8 +63,9 @@ If no reliable price is found in the evidence, respond with:
               content: `Evidence:\n\n${evidenceText}\n\nExtract the price.`
             }
           ],
-          max_tokens: 150,
-          temperature: 0
+                    max_tokens: 500,
+          temperature: 0,
+          reasoning_effort: "low"
         })
       }
     );
