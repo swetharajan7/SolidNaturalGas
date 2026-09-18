@@ -1,14 +1,38 @@
+import { kv } from "@vercel/kv";
+
+function keyFor(hypothesis) {
+  const normalized = hypothesis.trim().toLowerCase().replace(/\s+/g, " ");
+  return `confidence:${normalized}`;
+}
+
 export async function POST(request) {
   try {
-    const { hypothesis, previousConfidence } = await request.json();
-    const startingConfidence =
-      typeof previousConfidence === "number" ? previousConfidence : 50;
+    const { hypothesis } = await request.json();
 
     if (!hypothesis) {
       return Response.json(
         { error: "Please enter a market hypothesis." },
         { status: 400 }
       );
+    }
+
+    /*
+     * STEP 0
+     * Look up this hypothesis's last known confidence in KV.
+     * Falls back to 50 (no lean) the first time it's ever run,
+     * or if KV isn't reachable for some reason.
+     */
+
+    const kvKey = keyFor(hypothesis);
+    let startingConfidence = 50;
+
+    try {
+      const stored = await kv.get(kvKey);
+      if (stored && typeof stored.confidence === "number") {
+        startingConfidence = stored.confidence;
+      }
+    } catch (kvError) {
+      console.error("KV read failed, defaulting to 50:", kvError);
     }
 
     /*
@@ -127,13 +151,11 @@ The hypothesis currently has a confidence score of ${startingConfidence}/100
 prior analysis. Weigh the NEW evidence against that starting point --
 don't swing the score wildly on weak or tangential evidence.
 
+Keep PRIMARY THESIS, COUNTER-THESIS, and KEY VARIABLES TO MONITOR concise
+(3-4 sentences or bullet points each). Spend more of your output budget on
+LIVE EVIDENCE and CONFIDENCE ASSESSMENT, since those carry the most weight.
+
 Return the analysis using these headings:
-
-  Return the analysis using these headings:
-
-  Keep PRIMARY THESIS, COUNTER-THESIS, and KEY VARIABLES TO MONITOR concise
-  (3-4 sentences or bullet points each). Spend more of your output budget on
-  LIVE EVIDENCE and CONFIDENCE ASSESSMENT, since those carry the most weight.
 
 PRIMARY THESIS
 COUNTER-THESIS
@@ -168,7 +190,7 @@ Evaluate the hypothesis using the evidence above.
             }
           ],
 
-                   max_tokens: 2200,
+          max_tokens: 2200,
           reasoning_effort: "medium"
         })
       }
@@ -190,24 +212,44 @@ Evaluate the hypothesis using the evidence above.
 
     /*
      * STEP 4
-     * Extract the Nemotron response, and pull out the confidence score.
+     * Extract the Nemotron response, strip the CONFIDENCE_SCORE line
+     * out of the displayed text, and parse the score.
      */
 
-    const message =
-      nemotronData.choices?.[0]?.message;
+    const message = nemotronData.choices?.[0]?.message;
 
-    const result =
+    const rawResult =
       message?.content ||
       message?.reasoning_content ||
       nemotronData.choices?.[0]?.text ||
-      null;
+      "";
 
     let newConfidence = startingConfidence;
-    if (result) {
-      const match = result.match(/CONFIDENCE_SCORE:\s*(\d{1,3})/i);
-      if (match) {
-        newConfidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
-      }
+    const match = rawResult.match(/CONFIDENCE_SCORE:\s*(\d{1,3})/i);
+    if (match) {
+      newConfidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
+    }
+
+    // Strip the machine-readable line so it doesn't show up in the UI
+    const result = rawResult
+      .replace(/CONFIDENCE_SCORE:\s*\d{1,3}\s*$/i, "")
+      .trim();
+
+    /*
+     * STEP 5
+     * Persist the new confidence in KV, keyed by this hypothesis,
+     * so the next run (from this page OR from the cron job) continues
+     * from here instead of resetting to 50.
+     */
+
+    try {
+      await kv.set(kvKey, {
+        confidence: newConfidence,
+        hypothesis,
+        lastRun: new Date().toISOString()
+      });
+    } catch (kvError) {
+      console.error("KV write failed (result still returned):", kvError);
     }
 
     console.log(
@@ -216,8 +258,7 @@ Evaluate the hypothesis using the evidence above.
         {
           tavilyUsage: tavilyData.usage,
           nemotronUsage: nemotronData.usage,
-          finishReason:
-            nemotronData.choices?.[0]?.finish_reason,
+          finishReason: nemotronData.choices?.[0]?.finish_reason,
           confidenceDelta: newConfidence - startingConfidence
         },
         null,
@@ -226,7 +267,7 @@ Evaluate the hypothesis using the evidence above.
     );
 
     /*
-     * STEP 5
+     * STEP 6
      * Return analysis + source list + confidence to the website.
      */
 
@@ -249,9 +290,7 @@ Evaluate the hypothesis using the evidence above.
         nemotron: nemotronData.usage || null
       },
 
-      finish_reason:
-        nemotronData.choices?.[0]?.finish_reason ||
-        null
+      finish_reason: nemotronData.choices?.[0]?.finish_reason || null
     });
 
   } catch (error) {
