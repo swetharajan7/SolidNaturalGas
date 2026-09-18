@@ -274,7 +274,7 @@ export default function Home() {
         </button>
       </section>
 
-      {result && (
+       {result && (
         <section
           style={{
             marginTop: "45px",
@@ -282,6 +282,64 @@ export default function Home() {
             borderTop: "1px solid #d9e0e8"
           }}
         >
+          {confidence !== null && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "20px"
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    letterSpacing: "0.08em",
+                    color: "#586474"
+                  }}
+                >
+                  CONFIDENCE
+                </div>
+                <div
+                  style={{
+                    fontSize: "36px",
+                    fontWeight: "800",
+                    color: "#0B1F3B"
+                  }}
+                >
+                  {confidence}
+                  <span
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "500",
+                      color: "#7a8593"
+                    }}
+                  >
+                    /100
+                  </span>
+                </div>
+              </div>
+
+              {confidenceDelta !== 0 && (
+                <div
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "999px",
+                    fontSize: "14px",
+                    fontWeight: "700",
+                    background: confidenceDelta > 0 ? "#e6f4ea" : "#fbe9e7",
+                    color: confidenceDelta > 0 ? "#1e7d34" : "#a13a2c"
+                  }}
+                >
+                  {confidenceDelta > 0 ? "▲" : "▼"}{" "}
+                  {Math.abs(confidenceDelta)} since last check
+                </div>
+              )}
+            </div>
+          )}
+
           <h2>Research Assessment</h2>
 
           <div
