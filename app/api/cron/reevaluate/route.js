@@ -108,14 +108,21 @@ line output exactly: CONFIDENCE_SCORE: <integer 0-100>`
     ? Math.max(0, Math.min(100, parseInt(match[1], 10)))
     : startingConfidence;
 
-  await kv.set(kvKey, {
-    confidence: newConfidence,
-    hypothesis,
-    lastRun: new Date().toISOString()
-  });
+   const historyKey = kvKey.replace(/^confidence:/, "history:");
+  const lastRun = new Date().toISOString();
+
+  await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
+  await kv.lpush(
+    historyKey,
+    JSON.stringify({
+      confidence: newConfidence,
+      delta: newConfidence - startingConfidence,
+      timestamp: lastRun
+    })
+  );
+  await kv.ltrim(historyKey, 0, 49);
 
   return { hypothesis, previousConfidence: startingConfidence, newConfidence };
-}
 
 export async function GET(request) {
   const authHeader = request.headers.get("authorization");
