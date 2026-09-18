@@ -5,9 +5,10 @@ function keyFor(hypothesis) {
   return `confidence:${normalized}`;
 }
 
-// Edit this list to whatever hypotheses you want tracked autonomously.
-// Using the same text as your homepage default keeps them in sync.
-const TRACKED_HYPOTHESES = [
+// Fallback only — used on a fresh deploy before anyone has run a
+// hypothesis yet. Once someone uses the site, the tracked set below
+// takes over automatically.
+const DEFAULT_HYPOTHESES = [
   "European LNG spot prices will strengthen over the next 30 days."
 ];
 
