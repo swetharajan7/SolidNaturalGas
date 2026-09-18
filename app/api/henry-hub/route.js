@@ -117,4 +117,4 @@ If no reliable price is found in the evidence, respond with:
   }
 }
 
-export const revalidate = 3600;
+export const revalidate = 3600;                          
