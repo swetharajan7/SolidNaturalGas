@@ -162,7 +162,7 @@ Evaluate the hypothesis using the evidence above.
             }
           ],
 
-          max_tokens: 1200,
+                   max_tokens: 2200,
           reasoning_effort: "medium"
         })
       }
