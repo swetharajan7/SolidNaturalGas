@@ -36,10 +36,21 @@ export async function POST(request) {
       console.error("KV read failed, defaulting to 50:", kvError);
     }
 
+        const lastRun = new Date().toISOString();
+
     try {
-      await kv.sadd("tracked:hypotheses", hypothesis);
+      await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
+      await kv.lpush(
+        historyKey,
+        JSON.stringify({
+          confidence: newConfidence,
+          delta: newConfidence - startingConfidence,
+          timestamp: lastRun
+        })
+      );
+      await kv.ltrim(historyKey, 0, 49);
     } catch (kvError) {
-      console.error("KV sadd (tracked list) failed:", kvError);
+      console.error("KV write failed (result still returned):", kvError);
     }
     /*
      * STEP 1
