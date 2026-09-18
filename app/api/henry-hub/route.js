@@ -79,23 +79,22 @@ If no reliable price is found in the evidence, respond with:
       );
     }
 
-    const raw = nemotronData.choices?.[0]?.message?.content || "";
+        const message = nemotronData.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning_content || "";
     const clean = raw.replace(/```json|```/g, "").trim();
+
+    // Pull out just the {...} object in case the model adds any stray text
+    const match = clean.match(/\{[\s\S]*\}/);
+    const jsonText = match ? match[0] : clean;
 
     let parsed;
     try {
-      parsed = JSON.parse(clean);
+      parsed = JSON.parse(jsonText);
     } catch {
+      console.error("Henry Hub JSON parse failed. Raw model output:", raw);
       return Response.json(
         { error: "Unable to parse price from evidence.", details: raw },
         { status: 502 }
-      );
-    }
-
-    if (parsed.value == null) {
-      return Response.json(
-        { error: "No reliable Henry Hub price found in current evidence." },
-        { status: 404 }
       );
     }
 
