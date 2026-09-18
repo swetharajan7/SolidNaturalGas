@@ -1,6 +1,8 @@
 export async function POST(request) {
   try {
-    const { hypothesis } = await request.json();
+    const { hypothesis, previousConfidence } = await request.json();
+    const startingConfidence =
+      typeof previousConfidence === "number" ? previousConfidence : 50;
 
     if (!hypothesis) {
       return Response.json(
@@ -120,6 +122,11 @@ Clearly distinguish:
 When relying on supplied evidence, cite the relevant source
 using [Source 1], [Source 2], etc.
 
+The hypothesis currently has a confidence score of ${startingConfidence}/100
+(0 = very likely false, 50 = no lean, 100 = very likely true), based on
+prior analysis. Weigh the NEW evidence against that starting point --
+don't swing the score wildly on weak or tangential evidence.
+
 Return the analysis using these headings:
 
 PRIMARY THESIS
@@ -131,6 +138,11 @@ CONFIDENCE ASSESSMENT
 
 The confidence assessment must explain why the available
 evidence strengthens, weakens or leaves the hypothesis unresolved.
+
+After CONFIDENCE ASSESSMENT, on its own line, output exactly:
+CONFIDENCE_SCORE: <integer 0-100>
+with nothing else on that line. This is parsed by code, so the
+format must be exact.
 `
             },
 
@@ -172,7 +184,7 @@ Evaluate the hypothesis using the evidence above.
 
     /*
      * STEP 4
-     * Extract the Nemotron response.
+     * Extract the Nemotron response, and pull out the confidence score.
      */
 
     const message =
@@ -184,6 +196,14 @@ Evaluate the hypothesis using the evidence above.
       nemotronData.choices?.[0]?.text ||
       null;
 
+    let newConfidence = startingConfidence;
+    if (result) {
+      const match = result.match(/CONFIDENCE_SCORE:\s*(\d{1,3})/i);
+      if (match) {
+        newConfidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
+      }
+    }
+
     console.log(
       "Solid Natural Gas analysis:",
       JSON.stringify(
@@ -191,7 +211,8 @@ Evaluate the hypothesis using the evidence above.
           tavilyUsage: tavilyData.usage,
           nemotronUsage: nemotronData.usage,
           finishReason:
-            nemotronData.choices?.[0]?.finish_reason
+            nemotronData.choices?.[0]?.finish_reason,
+          confidenceDelta: newConfidence - startingConfidence
         },
         null,
         2
@@ -200,11 +221,15 @@ Evaluate the hypothesis using the evidence above.
 
     /*
      * STEP 5
-     * Return analysis + source list to the website.
+     * Return analysis + source list + confidence to the website.
      */
 
     return Response.json({
       result,
+
+      confidence: newConfidence,
+      previousConfidence: startingConfidence,
+      confidenceDelta: newConfidence - startingConfidence,
 
       sources: sources.map((source) => ({
         id: source.id,
