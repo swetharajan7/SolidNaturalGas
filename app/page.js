@@ -72,31 +72,47 @@ export default function Home() {
       style={{
         maxWidth: "900px",
         margin: "0 auto",
-        padding: "40px 24px 80px",
+        padding: "0 24px 80px",
         fontFamily: "Arial, sans-serif"
       }}
     >
+      <nav
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          padding: "20px 0",
+          borderBottom: "1px solid #d9e0e8",
+          marginBottom: "35px"
+        }}
+      >
+        <Image
+          src="/logo.png"
+          alt="Solid Natural Gas"
+          width={36}
+          height={36}
+          priority
+        />
+
+        <span
+          style={{
+            fontSize: "18px",
+            fontWeight: "700",
+            color: "#0B1F3B"
+          }}
+        >
+          Solid Natural Gas
+        </span>
+      </nav>
+
       <header
         style={{
           textAlign: "center",
           marginBottom: "35px"
         }}
       >
-        <Image
-          src="/solid-natural-gas-icon.jpeg"
-          alt="Solid Natural Gas"
-          width={240}
-          height={340}
-          priority
-          style={{
-            width: "200px",
-            height: "auto"
-          }}
-        />
-
         <p
           style={{
-            marginTop: "10px",
             fontSize: "17px",
             color: "#44546a"
           }}
