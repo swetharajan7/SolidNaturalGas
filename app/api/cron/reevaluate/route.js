@@ -133,8 +133,18 @@ export async function GET(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+   let hypotheses = [];
+  try {
+    hypotheses = await kv.smembers("tracked:hypotheses");
+  } catch (kvError) {
+    console.error("KV smembers failed:", kvError);
+  }
+  if (!hypotheses || hypotheses.length === 0) {
+    hypotheses = DEFAULT_HYPOTHESES;
+  }
+
   const results = [];
-  for (const hypothesis of TRACKED_HYPOTHESES) {
+  for (const hypothesis of hypotheses) {
     try {
       results.push(await evaluateOne(hypothesis));
     } catch (error) {
