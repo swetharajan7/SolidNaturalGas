@@ -8,10 +8,10 @@ export default function Home() {
     "European LNG spot prices will strengthen over the next 30 days."
   );
 
-   const [result, setResult] = useState("");
-  const [loading, setLoading] = useState(false);
   const [confidence, setConfidence] = useState(null);
   const [confidenceDelta, setConfidenceDelta] = useState(0);
+  const [sources, setSources] = useState([]);
+  const [dashboard, setDashboard] = useState([]);
 
   const [henryHub, setHenryHub] = useState([]);
   const [henryHubError, setHenryHubError] = useState("");
