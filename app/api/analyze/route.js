@@ -129,6 +129,12 @@ don't swing the score wildly on weak or tangential evidence.
 
 Return the analysis using these headings:
 
+  Return the analysis using these headings:
+
+  Keep PRIMARY THESIS, COUNTER-THESIS, and KEY VARIABLES TO MONITOR concise
+  (3-4 sentences or bullet points each). Spend more of your output budget on
+  LIVE EVIDENCE and CONFIDENCE ASSESSMENT, since those carry the most weight.
+
 PRIMARY THESIS
 COUNTER-THESIS
 LIVE EVIDENCE
