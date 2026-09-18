@@ -344,7 +344,7 @@ export default function Home() {
 
           <h2>Research Assessment</h2>
 
-          <div
+                    <div
             style={{
               whiteSpace: "pre-wrap",
               lineHeight: "1.7",
@@ -353,6 +353,36 @@ export default function Home() {
           >
             {result}
           </div>
+
+          {sources.length > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  letterSpacing: "0.06em",
+                  color: "#586474",
+                  marginBottom: "8px"
+                }}
+              >
+                SOURCES
+              </div>
+              <ul style={{ paddingLeft: "20px", margin: 0 }}>
+                {sources.map((source) => (
+                  <li key={source.id} style={{ marginBottom: "6px" }}>
+                    
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "#0B1F3B" }}
+                    >
+                      {source.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
     </main>
