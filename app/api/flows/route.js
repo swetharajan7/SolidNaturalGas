@@ -53,7 +53,7 @@ async function callNemotron(systemPrompt, userPrompt) {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      max_tokens: 700,
+      max_tokens: 1500,
       temperature: 0,
       reasoning_effort: "low"
     })
