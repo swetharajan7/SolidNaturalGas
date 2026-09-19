@@ -32,6 +32,17 @@ function Sparkline({ data, width = 100, height = 32 }) {
   );
 }
 
+function timeAgo(isoString) {
+  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 const MARKET_LABELS = {
   henryHub: { name: "Henry Hub", unit: "$/MMBtu" },
   ttf: { name: "TTF", unit: "€/MWh" },
@@ -92,6 +103,8 @@ export default function Home() {
   const [flows, setFlows] = useState(null);
   const [flowsError, setFlowsError] = useState("");
 
+  const [activity, setActivity] = useState([]);
+
   async function loadDashboard() {
     try {
       const response = await fetch("/api/dashboard");
@@ -99,6 +112,16 @@ export default function Home() {
       setDashboard(data.hypotheses || []);
     } catch (error) {
       console.error("Dashboard load failed:", error);
+    }
+  }
+
+  async function loadActivity() {
+    try {
+      const response = await fetch("/api/activity");
+      const data = await response.json();
+      setActivity(data.entries || []);
+    } catch (error) {
+      console.error("Activity load failed:", error);
     }
   }
 
@@ -141,6 +164,10 @@ export default function Home() {
     loadMarkets();
     loadFlows();
     loadDashboard();
+    loadActivity();
+
+    const interval = setInterval(loadActivity, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   async function analyze() {
@@ -174,6 +201,7 @@ export default function Home() {
       }
       setSources(data.sources || []);
       loadDashboard();
+      loadActivity();
     } catch {
       setResult("Unable to reach the analysis service.");
     }
@@ -251,6 +279,71 @@ export default function Home() {
           AI-native global gas intelligence.
         </p>
       </header>
+
+      <section
+        style={{
+          marginBottom: "30px",
+          padding: "20px",
+          border: "1px solid #d9e0e8",
+          borderRadius: "8px",
+          background: "#0B1F3B"
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "14px"
+          }}
+        >
+          <span
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              background: "#4ade80",
+              display: "inline-block"
+            }}
+          />
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: "700",
+              letterSpacing: "0.08em",
+              color: "#cbd5e1"
+            }}
+          >
+            AGENT ACTIVITY — LIVE
+          </div>
+        </div>
+
+        {activity.length === 0 ? (
+          <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+            Waiting for the next research cycle...
+          </div>
+        ) : (
+          <div>
+            {activity.slice(0, 8).map((entry, i) => (
+              <div
+                key={`${entry.timestamp}-${i}`}
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  padding: "6px 0",
+                  fontSize: "13px",
+                  borderTop: i > 0 ? "1px solid #1e2f4d" : "none"
+                }}
+              >
+                <span style={{ color: "#64748b", flexShrink: 0, minWidth: "56px" }}>
+                  {timeAgo(entry.timestamp)}
+                </span>
+                <span style={{ color: "#e2e8f0" }}>{entry.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section
         style={{
