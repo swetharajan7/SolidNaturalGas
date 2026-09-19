@@ -71,6 +71,13 @@ What makes this "agentic" rather than a chatbot: hypotheses don't reset to a neu
 - **Persistence:** Vercel KV (Redis-compatible)
 - **Autonomy:** Vercel Cron (hourly)
 
+Nebius Token Factory → model inference
+NVIDIA Nemotron → reasoning
+Tavily → live web retrieval
+Vercel KV → state/persistence
+Vercel Cron → autonomous scheduling
+
+
 ## Local setup
 
 ```bash
