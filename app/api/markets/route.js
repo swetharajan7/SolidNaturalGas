@@ -142,6 +142,8 @@ benchmark's value and date. Never invent a number.`
       );
     }
 
+       await logActivity("Markets updated: Henry Hub, TTF, JKM, Brent, WTI");
+
     return Response.json({
       markets: parsed,
       updatedAt: new Date().toISOString()
