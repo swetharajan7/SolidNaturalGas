@@ -521,11 +521,12 @@ export default function Home() {
                       {source.title}
                     </a>
                   </li>
-                ))}
+                          ))}
               </ul>
+            </div>
+          )}
         </section>
       )}
     </main>
   );
 }
-))}
