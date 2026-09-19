@@ -134,11 +134,11 @@ export async function GET(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let hypotheses = [];
+    let hypotheses = [];
   try {
-    hypotheses = await kv.smembers("tracked:hypotheses");
+    hypotheses = await kv.zrange("tracked:hypotheses", 0, -1);
   } catch (kvError) {
-    console.error("KV smembers failed:", kvError);
+    console.error("KV zrange failed:", kvError);
   }
   if (!hypotheses || hypotheses.length === 0) {
     hypotheses = DEFAULT_HYPOTHESES;
