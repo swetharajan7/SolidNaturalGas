@@ -9,6 +9,7 @@ async function searchTavily(query) {
       query,
       search_depth: "basic",
       max_results: 4,
+      days: 21,
       include_answer: false,
       include_raw_content: false
     })
