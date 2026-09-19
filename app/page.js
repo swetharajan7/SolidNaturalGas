@@ -40,6 +40,38 @@ const MARKET_LABELS = {
   wti: { name: "WTI", unit: "$/bbl" }
 };
 
+const CHOKEPOINT_LABELS = {
+  panama: "Panama Canal",
+  suez: "Suez Canal",
+  hormuz: "Strait of Hormuz",
+  malacca: "Strait of Malacca",
+  capeOfGoodHope: "Cape of Good Hope",
+  bosporus: "Bosporus"
+};
+
+const CORRIDOR_LABELS = {
+  usGulfEurope: "US Gulf → Europe",
+  usGulfAsia: "US Gulf → Asia",
+  qatarEurope: "Qatar → Europe",
+  qatarAsia: "Qatar → Asia",
+  australiaNorthAsia: "Australia → North Asia",
+  eastAfricaAsia: "East Africa → Asia",
+  russiaArcticEuropeAsia: "Russia/Arctic → Europe/Asia",
+  atlanticBasinEurope: "Atlantic Basin → Europe"
+};
+
+const STATUS_COLORS = {
+  normal: "#1e7d34",
+  elevated: "#b8860b",
+  disrupted: "#a13a2c"
+};
+
+const TREND_DISPLAY = {
+  up: { symbol: "▲", color: "#1e7d34" },
+  down: { symbol: "▼", color: "#a13a2c" },
+  stable: { symbol: "→", color: "#7a8593" }
+};
+
 export default function Home() {
   const [hypothesis, setHypothesis] = useState(
     "European LNG spot prices will strengthen over the next 30 days."
@@ -56,6 +88,9 @@ export default function Home() {
   const [markets, setMarkets] = useState(null);
   const [marketsError, setMarketsError] = useState("");
   const [marketsUpdatedAt, setMarketsUpdatedAt] = useState(null);
+
+  const [flows, setFlows] = useState(null);
+  const [flowsError, setFlowsError] = useState("");
 
   async function loadDashboard() {
     try {
@@ -86,7 +121,25 @@ export default function Home() {
       }
     }
 
+    async function loadFlows() {
+      try {
+        const response = await fetch("/api/flows");
+        const data = await response.json();
+
+        if (!response.ok) {
+          setFlowsError(data.error || "Unable to load flow intelligence.");
+          return;
+        }
+
+        setFlows(data);
+      } catch (error) {
+        console.error("Flows load failed:", error);
+        setFlowsError("Unable to load flow intelligence.");
+      }
+    }
+
     loadMarkets();
+    loadFlows();
     loadDashboard();
   }, []);
 
@@ -298,6 +351,156 @@ export default function Home() {
           }}
         >
           Live evidence via Tavily + Nemotron
+        </div>
+      </section>
+
+      <section
+        style={{
+          marginBottom: "30px",
+          padding: "20px",
+          border: "1px solid #d9e0e8",
+          borderRadius: "8px",
+          background: "#ffffff"
+        }}
+      >
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            color: "#586474",
+            marginBottom: "16px"
+          }}
+        >
+          GLOBAL LNG FLOWS
+        </div>
+
+        {flowsError ? (
+          <div style={{ fontSize: "14px", color: "#8a4b4b" }}>{flowsError}</div>
+        ) : flows ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "28px"
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  letterSpacing: "0.06em",
+                  color: "#7a8593",
+                  marginBottom: "10px"
+                }}
+              >
+                CHOKEPOINT STATUS
+              </div>
+              {Object.entries(CHOKEPOINT_LABELS).map(([key, label]) => {
+                const entry = flows.chokepoints?.[key];
+                const status = entry?.status || "normal";
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      padding: "8px 0",
+                      borderTop: "1px solid #eef1f4"
+                    }}
+                  >
+                    <span
+                      style={{
+                        marginTop: "5px",
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: STATUS_COLORS[status] || STATUS_COLORS.normal,
+                        flexShrink: 0
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: "14px", color: "#0B1F3B" }}>{label}</div>
+                      {entry?.note && (
+                        <div style={{ fontSize: "12px", color: "#9aa4b0" }}>
+                          {entry.note}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  letterSpacing: "0.06em",
+                  color: "#7a8593",
+                  marginBottom: "10px"
+                }}
+              >
+                ROUTE TRENDS
+              </div>
+              {Object.entries(CORRIDOR_LABELS).map(([key, label]) => {
+                const entry = flows.corridors?.[key];
+                const trend = entry?.trend || "stable";
+                const display = TREND_DISPLAY[trend] || TREND_DISPLAY.stable;
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "8px",
+                      padding: "8px 0",
+                      borderTop: "1px solid #eef1f4"
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: "14px", color: "#0B1F3B" }}>{label}</div>
+                      {entry?.note && (
+                        <div style={{ fontSize: "12px", color: "#9aa4b0" }}>
+                          {entry.note}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: "700",
+                        color: display.color,
+                        flexShrink: 0
+                      }}
+                    >
+                      {display.symbol}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: "14px", color: "#7a8593" }}>
+            Loading flow intelligence...
+          </div>
+        )}
+
+        <div
+          style={{
+            fontSize: "11px",
+            color: "#9aa4b0",
+            marginTop: "16px",
+            borderTop: "1px solid #eef1f4",
+            paddingTop: "10px"
+          }}
+        >
+          Chokepoint and corridor status reflect recent reported activity, via Tavily + Nemotron — not live vessel telemetry.
         </div>
       </section>
 
@@ -514,14 +717,14 @@ export default function Home() {
               >
                 SOURCES
               </div>
-                         <ul style={{ paddingLeft: "20px", margin: 0 }}>
+              <ul style={{ paddingLeft: "20px", margin: 0 }}>
                 {sources.map((source) => (
                   <li key={source.id} style={{ marginBottom: "6px" }}>
                     <a href={source.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1F3B" }}>
                       {source.title}
                     </a>
                   </li>
-                          ))}
+                ))}
               </ul>
             </div>
           )}
