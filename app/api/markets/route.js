@@ -13,7 +13,6 @@ async function logActivity(message) {
 }
 
 async function searchTavily(query) {
-async function searchTavily(query) {
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
