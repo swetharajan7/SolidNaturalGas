@@ -94,7 +94,7 @@ benchmark's value and date. Never invent a number.`
               content: `Evidence:\n\n${evidenceBlocks}\n\nExtract all five prices.`
             }
           ],
-          max_tokens: 600,
+                    max_tokens: 1200,
           temperature: 0,
           reasoning_effort: "low"
         })
