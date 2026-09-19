@@ -108,7 +108,7 @@ line output exactly: CONFIDENCE_SCORE: <integer 0-100>`
     ? Math.max(0, Math.min(100, parseInt(match[1], 10)))
     : startingConfidence;
 
-   const historyKey = kvKey.replace(/^confidence:/, "history:");
+  const historyKey = kvKey.replace(/^confidence:/, "history:");
   const lastRun = new Date().toISOString();
 
   await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
@@ -123,6 +123,7 @@ line output exactly: CONFIDENCE_SCORE: <integer 0-100>`
   await kv.ltrim(historyKey, 0, 49);
 
   return { hypothesis, previousConfidence: startingConfidence, newConfidence };
+}
 
 export async function GET(request) {
   const authHeader = request.headers.get("authorization");
@@ -133,7 +134,7 @@ export async function GET(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-   let hypotheses = [];
+  let hypotheses = [];
   try {
     hypotheses = await kv.smembers("tracked:hypotheses");
   } catch (kvError) {
