@@ -2,8 +2,7 @@ import { kv } from "@vercel/kv";
 
 export async function GET() {
   try {
-    const hypotheses = await kv.smembers("tracked:hypotheses");
-
+    const hypotheses = await kv.zrange("tracked:hypotheses", 0, -1, { rev: true });
     if (!hypotheses || hypotheses.length === 0) {
       return Response.json({ hypotheses: [] });
     }
