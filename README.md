@@ -41,5 +41,64 @@ Every Nemotron call above is grounded in live web evidence fetched via the **Tav
 What makes this "agentic" rather than a chatbot: hypotheses don't reset to a neutral state every time. Confidence scores and full historical runs are persisted, and a Vercel Cron job calls `/api/cron/reevaluate` every hour, re-running the Tavily → Nemotron pipeline for every tracked hypothesis independently of any user interaction. The system keeps researching and updating its own conclusions even when nobody is looking at it.
 
 ---
+## Architecture
+┌─────────────┐ ┌──────────────────┐ ┌────────────────────┐
+│ Frontend │────▶│ /api/analyze │────▶│ Tavily Search API │
+│ (Next.js) │ │ /api/henry-hub │ │ (live evidence) │
+│ │ │ /api/cron/... │ └────────────────────┘
+│ Dashboard + │ │ /api/dashboard │
+│ Sparklines │ └─────────┬─────────┘
+└──────▲───────┘ │
+│ ▼
+│ ┌────────────────────┐
+│ │ Nebius Token │
+│ │ Factory │
+│ │ (Nemotron-3-Super) │
+│ └─────────┬───────────┘
+│ │
+│ ▼
+│ ┌────────────────────┐
+└──────────────│ Vercel KV │
+│ (confidence + │
+│ history storage) │
+└────────────────────┘
+
+## Tech stack
+
+- **Frontend:** Next.js (App Router), React, deployed on Vercel
+- **Reasoning:** NVIDIA Nemotron-3-Super via Nebius Token Factory
+- **Live evidence:** Tavily Search API
+- **Persistence:** Vercel KV (Redis-compatible)
+- **Autonomy:** Vercel Cron (hourly)
+
+## Local setup
+
+```bash
+npm install
+```
+
+Create a `.env.local` with:
+
+NEBIUS_API_KEY=
+NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1
+NEBIUS_MODEL=nvidia/nemotron-3-super-120b-a12b
+TAVILY_API_KEY=
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+CRON_SECRET=
+
+
+```bash
+npm run dev
+```
+
+## What was built during the Submission Period
+
+This project's Vercel hosting and basic UI shell predate the hackathon's start. During the Submission Period, the entire agentic reasoning pipeline was built from scratch: live Tavily + Nemotron integration for hypothesis evaluation, confidence scoring and persistence, the autonomous hourly cron re-evaluation loop, the multi-hypothesis dashboard with historical trend sparklines, source citation display, and the migration of the Henry Hub price widget from a static government API to the same live-evidence Nemotron pipeline powering the rest of the app.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
 
 ## Architecture
