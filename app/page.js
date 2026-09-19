@@ -475,10 +475,9 @@ export default function Home() {
               </div>
               <ul style={{ paddingLeft: "20px", margin: 0 }}>
                 {sources.map((source) => (
-                  <li key={source.id} style={{ marginBottom: "6px" }}>
-                    
-                      href={source.url}
-                      target="_blank"
+                  <li key={source.id} style={{ marginBottom: "6px" }}>   
+   <a href={source.url} 
+target="_blank"
                       rel="noopener noreferrer"
                       style={{ color: "#0B1F3B" }}
                     >
