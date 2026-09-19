@@ -32,6 +32,14 @@ function Sparkline({ data, width = 100, height = 32 }) {
   );
 }
 
+const MARKET_LABELS = {
+  henryHub: { name: "Henry Hub", unit: "$/MMBtu" },
+  ttf: { name: "TTF", unit: "€/MWh" },
+  jkm: { name: "JKM", unit: "$/MMBtu" },
+  brent: { name: "Brent", unit: "$/bbl" },
+  wti: { name: "WTI", unit: "$/bbl" }
+};
+
 export default function Home() {
   const [hypothesis, setHypothesis] = useState(
     "European LNG spot prices will strengthen over the next 30 days."
@@ -45,8 +53,9 @@ export default function Home() {
   const [sources, setSources] = useState([]);
   const [dashboard, setDashboard] = useState([]);
 
-  const [henryHub, setHenryHub] = useState([]);
-  const [henryHubError, setHenryHubError] = useState("");
+  const [markets, setMarkets] = useState(null);
+  const [marketsError, setMarketsError] = useState("");
+  const [marketsUpdatedAt, setMarketsUpdatedAt] = useState(null);
 
   async function loadDashboard() {
     try {
@@ -59,26 +68,25 @@ export default function Home() {
   }
 
   useEffect(() => {
-    async function loadHenryHub() {
+    async function loadMarkets() {
       try {
-        const response = await fetch("/api/henry-hub");
+        const response = await fetch("/api/markets");
         const data = await response.json();
 
         if (!response.ok) {
-          setHenryHubError(
-            data.error || "Unable to load Henry Hub data."
-          );
+          setMarketsError(data.error || "Unable to load market prices.");
           return;
         }
 
-        setHenryHub(data.series || []);
+        setMarkets(data.markets || null);
+        setMarketsUpdatedAt(data.updatedAt || null);
       } catch (error) {
-        console.error("Henry Hub load failed:", error);
-        setHenryHubError("Unable to load Henry Hub data.");
+        console.error("Markets load failed:", error);
+        setMarketsError("Unable to load market prices.");
       }
     }
 
-    loadHenryHub();
+    loadMarkets();
     loadDashboard();
   }, []);
 
@@ -119,9 +127,6 @@ export default function Home() {
 
     setLoading(false);
   }
-
-  const latestHenryHub =
-    henryHub.length > 0 ? henryHub[0] : null;
 
   return (
     <main
@@ -205,59 +210,95 @@ export default function Home() {
       >
         <div
           style={{
-            fontSize: "14px",
-            fontWeight: "700",
-            letterSpacing: "0.08em",
-            color: "#586474"
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginBottom: "16px"
           }}
         >
-          HENRY HUB
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: "700",
+              letterSpacing: "0.08em",
+              color: "#586474"
+            }}
+          >
+            MARKETS
+          </div>
+          {marketsUpdatedAt && (
+            <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
+              Updated {new Date(marketsUpdatedAt).toLocaleTimeString()}
+            </div>
+          )}
         </div>
 
-        {latestHenryHub ? (
-          <>
-            <div
-              style={{
-                fontSize: "30px",
-                fontWeight: "700",
-                marginTop: "6px",
-                color: "#0B1F3B"
-              }}
-            >
-              ${latestHenryHub.value.toFixed(2)} / MMBtu
-            </div>
-
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#7a8593",
-                marginTop: "4px"
-              }}
-            >
-              Daily spot · {latestHenryHub.date} · Live evidence via Tavily + Nemotron
-            </div>
-          </>
-        ) : henryHubError ? (
+        {marketsError ? (
+          <div style={{ fontSize: "14px", color: "#8a4b4b" }}>{marketsError}</div>
+        ) : markets ? (
           <div
             style={{
-              marginTop: "8px",
-              fontSize: "14px",
-              color: "#8a4b4b"
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: "18px"
             }}
           >
-            {henryHubError}
+            {Object.entries(MARKET_LABELS).map(([key, { name, unit }]) => {
+              const entry = markets[key];
+              return (
+                <div key={key}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      letterSpacing: "0.06em",
+                      color: "#7a8593",
+                      marginBottom: "4px"
+                    }}
+                  >
+                    {name.toUpperCase()}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: "800",
+                      color: "#0B1F3B"
+                    }}
+                  >
+                    {entry && entry.value != null ? (
+                      <>
+                        {unit.startsWith("€") ? "€" : "$"}
+                        {Number(entry.value).toFixed(2)}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
+                    {unit}
+                    {entry?.date ? ` · ${entry.date}` : ""}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <div
-            style={{
-              marginTop: "8px",
-              fontSize: "14px",
-              color: "#7a8593"
-            }}
-          >
-            Loading latest Henry Hub price...
+          <div style={{ fontSize: "14px", color: "#7a8593" }}>
+            Loading latest market prices...
           </div>
         )}
+
+        <div
+          style={{
+            fontSize: "11px",
+            color: "#9aa4b0",
+            marginTop: "16px",
+            borderTop: "1px solid #eef1f4",
+            paddingTop: "10px"
+          }}
+        >
+          Live evidence via Tavily + Nemotron
+        </div>
       </section>
 
       {dashboard.length > 0 && (
@@ -475,9 +516,10 @@ export default function Home() {
               </div>
               <ul style={{ paddingLeft: "20px", margin: 0 }}>
                 {sources.map((source) => (
-                  <li key={source.id} style={{ marginBottom: "6px" }}>   
-   <a href={source.url} 
-target="_blank"
+                  <li key={source.id} style={{ marginBottom: "6px" }}>
+                    
+                      href={source.url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       style={{ color: "#0B1F3B" }}
                     >
