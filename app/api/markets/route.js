@@ -100,8 +100,10 @@ Respond with ONLY a JSON object, no markdown, no preamble, in exactly this shape
   "brent": {"value": <number or null>, "date": "<date as stated, or null>"},
   "wti": {"value": <number or null>, "date": "<date as stated, or null>"}
 }
-If a benchmark's evidence block has no reliable price, use null for that
-benchmark's value and date. Never invent a number.`
+Only extract a price if its date is clearly stated as being within the last
+10 days. If a benchmark's evidence block has no price meeting that freshness
+bar, use null for that benchmark's value and date rather than reporting an
+older reference price. Never invent a number.`
             },
             {
               role: "user",
