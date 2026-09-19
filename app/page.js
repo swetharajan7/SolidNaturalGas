@@ -298,13 +298,13 @@ export default function Home() {
           marginBottom: "35px"
         }}
       >
-        <p
+                <p
           style={{
             fontSize: "17px",
             color: "#44546a"
           }}
         >
-          AI-native global gas intelligence.
+          An AI agent that tests LNG price hypotheses against live evidence and revises its own confidence — hourly, autonomously.
         </p>
       </header>
 
