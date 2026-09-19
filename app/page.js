@@ -105,6 +105,8 @@ export default function Home() {
 
   const [activity, setActivity] = useState([]);
 
+    const [notebook, setNotebook] = useState([]);
+
   async function loadDashboard() {
     try {
       const response = await fetch("/api/dashboard");
@@ -122,6 +124,15 @@ export default function Home() {
       setActivity(data.entries || []);
     } catch (error) {
       console.error("Activity load failed:", error);
+    }
+  }
+    async function loadNotebook() {
+    try {
+      const response = await fetch("/api/notebook");
+      const data = await response.json();
+      setNotebook(data.entries || []);
+    } catch (error) {
+      console.error("Notebook load failed:", error);
     }
   }
 
@@ -161,10 +172,11 @@ export default function Home() {
       }
     }
 
-    loadMarkets();
+       loadMarkets();
     loadFlows();
     loadDashboard();
     loadActivity();
+    loadNotebook();
 
     const interval = setInterval(loadActivity, 20000);
     return () => clearInterval(interval);
@@ -199,9 +211,10 @@ export default function Home() {
           typeof data.confidenceDelta === "number" ? data.confidenceDelta : 0
         );
       }
-      setSources(data.sources || []);
+         setSources(data.sources || []);
       loadDashboard();
       loadActivity();
+      loadNotebook();
     } catch {
       setResult("Unable to reach the analysis service.");
     }
@@ -616,6 +629,74 @@ export default function Home() {
               marginBottom: "14px"
             }}
           >
+      {notebook.length > 0 && (
+        <section
+          style={{
+            marginBottom: "30px",
+            padding: "20px",
+            border: "1px solid #d9e0e8",
+            borderRadius: "8px",
+            background: "#ffffff"
+          }}
+        >
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: "700",
+              letterSpacing: "0.08em",
+              color: "#586474",
+              marginBottom: "16px"
+            }}
+          >
+            RESEARCH NOTEBOOK
+          </div>
+
+          {notebook.map((entry, i) => {
+            const prior = entry.confidence - entry.delta;
+            return (
+              <div
+                key={`${entry.timestamp}-${i}`}
+                style={{
+                  padding: "14px 0",
+                  borderTop: i > 0 ? "1px solid #eef1f4" : "none"
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    marginBottom: "4px"
+                  }}
+                >
+                  <div style={{ fontSize: "14px", fontWeight: "700", color: "#0B1F3B" }}>
+                    {entry.hypothesis}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#9aa4b0", flexShrink: 0, marginLeft: "12px" }}>
+                    {new Date(entry.timestamp).toLocaleString()}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: "13px", color: "#586474", marginBottom: "6px" }}>
+                  Prior confidence: {prior}% · New evidence: {entry.evidenceCount ?? 0} items ·
+                  New confidence: {entry.confidence}%
+                  {entry.delta !== 0 && (
+                    <span style={{ color: entry.delta > 0 ? "#1e7d34" : "#a13a2c", fontWeight: "700" }}>
+                      {" "}({entry.delta > 0 ? "+" : ""}{entry.delta})
+                    </span>
+                  )}
+                </div>
+
+                {entry.reasoning && (
+                  <div style={{ fontSize: "13px", color: "#0B1F3B", lineHeight: "1.5" }}>
+                    {entry.reasoning}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
             TRACKED HYPOTHESES
           </div>
 
