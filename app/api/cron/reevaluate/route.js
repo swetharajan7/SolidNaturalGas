@@ -5,6 +5,18 @@ function keyFor(hypothesis) {
   return `confidence:${normalized}`;
 }
 
+async function logActivity(message) {
+  try {
+    await kv.lpush(
+      "activity:log",
+      JSON.stringify({ message, timestamp: new Date().toISOString() })
+    );
+    await kv.ltrim("activity:log", 0, 99);
+  } catch (error) {
+    console.error("Activity log write failed:", error);
+  }
+}
+
 // Fallback only — used on a fresh deploy before anyone has run a
 // hypothesis yet. Once someone uses the site, the tracked set below
 // takes over automatically.
@@ -59,6 +71,10 @@ async function evaluateOne(hypothesis) {
     title: source.title,
     content: source.content
   }));
+
+  await logActivity(
+    `Queried live evidence for "${hypothesis}" (${sources.length} sources)`
+  );
 
   const evidenceText = sources.length
     ? sources.map((s) => `SOURCE ${s.id}\nTitle: ${s.title}\nEvidence:\n${s.content}`).join("\n\n")
@@ -122,6 +138,10 @@ line output exactly: CONFIDENCE_SCORE: <integer 0-100>`
   );
   await kv.ltrim(historyKey, 0, 49);
 
+  await logActivity(
+    `Re-evaluated "${hypothesis}": ${startingConfidence}% → ${newConfidence}%`
+  );
+
   return { hypothesis, previousConfidence: startingConfidence, newConfidence };
 }
 
@@ -134,7 +154,9 @@ export async function GET(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-    let hypotheses = [];
+  await logActivity("Scheduled research cycle started");
+
+  let hypotheses = [];
   try {
     hypotheses = await kv.zrange("tracked:hypotheses", 0, -1);
   } catch (kvError) {
@@ -153,6 +175,8 @@ export async function GET(request) {
       results.push({ hypothesis, error: error.message });
     }
   }
+
+  await logActivity(`Research cycle complete: ${hypotheses.length} hypotheses reviewed`);
 
   return Response.json({ ranAt: new Date().toISOString(), results });
 }
