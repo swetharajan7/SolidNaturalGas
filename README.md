@@ -101,13 +101,3 @@ This project's Vercel hosting and basic UI shell predate the hackathon's start. 
 MIT — see [LICENSE](./LICENSE).
 
 
-
-
-
-
-
-
-
-
-
-## Archite
