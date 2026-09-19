@@ -222,10 +222,25 @@ export default function Home() {
     setLoading(false);
   }
 
+  const cardStyle = {
+    padding: "20px",
+    border: "1px solid #d9e0e8",
+    borderRadius: "8px",
+    background: "#ffffff"
+  };
+
+  const sectionLabelStyle = {
+    fontSize: "13px",
+    fontWeight: "700",
+    letterSpacing: "0.06em",
+    color: "#7a8593",
+    marginBottom: "12px"
+  };
+
   return (
     <main
       style={{
-        maxWidth: "900px",
+        maxWidth: "1280px",
         margin: "0 auto",
         padding: "0 24px 80px",
         fontFamily: "Arial, sans-serif"
@@ -293,618 +308,545 @@ export default function Home() {
         </p>
       </header>
 
-      <section
+      <div
         style={{
-          marginBottom: "30px",
-          padding: "20px",
-          border: "1px solid #d9e0e8",
-          borderRadius: "8px",
-          background: "#0B1F3B"
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "24px",
+          alignItems: "flex-start"
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "14px"
-          }}
-        >
-          <span
+        {/* MAIN COLUMN — the reasoning is the hero */}
+        <div style={{ flex: "2 1 560px", minWidth: 0 }}>
+          <section
             style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#4ade80",
-              display: "inline-block"
-            }}
-          />
-          <div
-            style={{
-              fontSize: "13px",
-              fontWeight: "700",
-              letterSpacing: "0.08em",
-              color: "#cbd5e1"
+              ...cardStyle,
+              marginBottom: "24px",
+              background: "#0B1F3B",
+              border: "1px solid #0B1F3B"
             }}
           >
-            AGENT ACTIVITY — LIVE
-          </div>
-        </div>
-
-        {activity.length === 0 ? (
-          <div style={{ fontSize: "14px", color: "#94a3b8" }}>
-            Waiting for the next research cycle...
-          </div>
-        ) : (
-          <div>
-            {activity.slice(0, 8).map((entry, i) => (
-              <div
-                key={`${entry.timestamp}-${i}`}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: "14px"
+              }}
+            >
+              <span
                 style={{
-                  display: "flex",
-                  gap: "12px",
-                  padding: "6px 0",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "#4ade80",
+                  display: "inline-block"
+                }}
+              />
+              <div
+                style={{
                   fontSize: "13px",
-                  borderTop: i > 0 ? "1px solid #1e2f4d" : "none"
+                  fontWeight: "700",
+                  letterSpacing: "0.08em",
+                  color: "#cbd5e1"
                 }}
               >
-                <span style={{ color: "#64748b", flexShrink: 0, minWidth: "56px" }}>
-                  {timeAgo(entry.timestamp)}
-                </span>
-                <span style={{ color: "#e2e8f0" }}>{entry.message}</span>
+                AGENT ACTIVITY — LIVE
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section
-        style={{
-          marginBottom: "30px",
-          padding: "20px",
-          border: "1px solid #d9e0e8",
-          borderRadius: "8px",
-          background: "#ffffff"
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            marginBottom: "16px"
-          }}
-        >
-          <div
-            style={{
-              fontSize: "14px",
-              fontWeight: "700",
-              letterSpacing: "0.08em",
-              color: "#586474"
-            }}
-          >
-            MARKETS
-          </div>
-          {marketsUpdatedAt && (
-            <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
-              Updated {new Date(marketsUpdatedAt).toLocaleTimeString()}
             </div>
+
+            {activity.length === 0 ? (
+              <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+                Waiting for the next research cycle...
+              </div>
+            ) : (
+              <div>
+                {activity.slice(0, 8).map((entry, i) => (
+                  <div
+                    key={`${entry.timestamp}-${i}`}
+                    style={{
+                      display: "flex",
+                      gap: "12px",
+                      padding: "6px 0",
+                      fontSize: "13px",
+                      borderTop: i > 0 ? "1px solid #1e2f4d" : "none"
+                    }}
+                  >
+                    <span style={{ color: "#64748b", flexShrink: 0, minWidth: "56px" }}>
+                      {timeAgo(entry.timestamp)}
+                    </span>
+                    <span style={{ color: "#e2e8f0" }}>{entry.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={{ ...cardStyle, marginBottom: "24px" }}>
+            <h1
+              style={{
+                fontSize: "26px",
+                marginBottom: "8px",
+                marginTop: 0
+              }}
+            >
+              Test a Market Hypothesis
+            </h1>
+
+            <p
+              style={{
+                color: "#586474",
+                lineHeight: "1.6"
+              }}
+            >
+              Challenge a natural gas or LNG market thesis using
+              current evidence and AI reasoning.
+            </p>
+
+            <textarea
+              value={hypothesis}
+              onChange={(e) => setHypothesis(e.target.value)}
+              rows={5}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "16px",
+                fontSize: "16px",
+                lineHeight: "1.5",
+                border: "1px solid #b8c3cf",
+                borderRadius: "8px"
+              }}
+            />
+
+            <button
+              onClick={analyze}
+              disabled={loading}
+              style={{
+                marginTop: "15px",
+                padding: "12px 22px",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: loading ? "default" : "pointer",
+                borderRadius: "6px",
+                border: "none",
+                background: "#0B1F3B",
+                color: "white"
+              }}
+            >
+              {loading ? "Researching live evidence..." : "Research"}
+            </button>
+
+            {result && (
+              <div
+                style={{
+                  marginTop: "30px",
+                  paddingTop: "24px",
+                  borderTop: "1px solid #eef1f4"
+                }}
+              >
+                {confidence !== null && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "20px"
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "700",
+                          letterSpacing: "0.08em",
+                          color: "#586474"
+                        }}
+                      >
+                        CONFIDENCE
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "36px",
+                          fontWeight: "800",
+                          color: "#0B1F3B"
+                        }}
+                      >
+                        {confidence}
+                        <span
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: "500",
+                            color: "#7a8593"
+                          }}
+                        >
+                          /100
+                        </span>
+                      </div>
+                    </div>
+
+                    {confidenceDelta !== 0 && (
+                      <div
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "999px",
+                          fontSize: "14px",
+                          fontWeight: "700",
+                          background: confidenceDelta > 0 ? "#e6f4ea" : "#fbe9e7",
+                          color: confidenceDelta > 0 ? "#1e7d34" : "#a13a2c"
+                        }}
+                      >
+                        {confidenceDelta > 0 ? "▲" : "▼"}{" "}
+                        {Math.abs(confidenceDelta)} since last check
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <h2 style={{ fontSize: "20px" }}>Research Assessment</h2>
+
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    lineHeight: "1.7",
+                    fontSize: "16px"
+                  }}
+                >
+                  {result}
+                </div>
+
+                {sources.length > 0 && (
+                  <div style={{ marginTop: "24px" }}>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "700",
+                        letterSpacing: "0.06em",
+                        color: "#586474",
+                        marginBottom: "8px"
+                      }}
+                    >
+                      SOURCES
+                    </div>
+                    <ul style={{ paddingLeft: "20px", margin: 0 }}>
+                      {sources.map((source) => (
+                        <li key={source.id} style={{ marginBottom: "6px" }}>
+                          <a href={source.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1F3B" }}>
+                            {source.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {dashboard.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: "24px" }}>
+              <div style={sectionLabelStyle}>TRACKED HYPOTHESES</div>
+
+              {dashboard.map((item) => (
+                <div
+                  key={item.hypothesis}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "16px",
+                    padding: "12px 0",
+                    borderTop: "1px solid #eef1f4"
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "15px", color: "#0B1F3B" }}>
+                      {item.hypothesis}
+                    </div>
+                    {item.lastRun && (
+                      <div style={{ fontSize: "12px", color: "#9aa4b0", marginTop: "2px" }}>
+                        Last checked {new Date(item.lastRun).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <Sparkline data={item.history} />
+
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: "800",
+                      color: "#0B1F3B",
+                      minWidth: "56px",
+                      textAlign: "right"
+                    }}
+                  >
+                    {item.confidence ?? "—"}
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+
+          {notebook.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: "24px" }}>
+              <div style={sectionLabelStyle}>RESEARCH NOTEBOOK</div>
+
+              {notebook.map((entry, i) => {
+                const prior = entry.confidence - entry.delta;
+                return (
+                  <div
+                    key={`${entry.timestamp}-${i}`}
+                    style={{
+                      padding: "14px 0",
+                      borderTop: i > 0 ? "1px solid #eef1f4" : "none"
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "baseline",
+                        marginBottom: "4px"
+                      }}
+                    >
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#0B1F3B" }}>
+                        {entry.hypothesis}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9aa4b0", flexShrink: 0, marginLeft: "12px" }}>
+                        {new Date(entry.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: "13px", color: "#586474", marginBottom: "6px" }}>
+                      Prior confidence: {prior}% · New evidence: {entry.evidenceCount ?? 0} items ·
+                      New confidence: {entry.confidence}%
+                      {entry.delta !== 0 && (
+                        <span style={{ color: entry.delta > 0 ? "#1e7d34" : "#a13a2c", fontWeight: "700" }}>
+                          {" "}({entry.delta > 0 ? "+" : ""}{entry.delta})
+                        </span>
+                      )}
+                    </div>
+
+                    {entry.reasoning && (
+                      <div style={{ fontSize: "13px", color: "#0B1F3B", lineHeight: "1.5" }}>
+                        {entry.reasoning}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
           )}
         </div>
 
-        {marketsError ? (
-          <div style={{ fontSize: "14px", color: "#8a4b4b" }}>{marketsError}</div>
-        ) : markets ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: "18px"
-            }}
-          >
-            {Object.entries(MARKET_LABELS).map(([key, { name, unit }]) => {
-              const entry = markets[key];
-              return (
-                <div key={key}>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: "700",
-                      letterSpacing: "0.06em",
-                      color: "#7a8593",
-                      marginBottom: "4px"
-                    }}
-                  >
-                    {name.toUpperCase()}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "24px",
-                      fontWeight: "800",
-                      color: "#0B1F3B"
-                    }}
-                  >
-                    {entry && entry.value != null ? (
-                      <>
-                        {unit.startsWith("€") ? "€" : "$"}
-                        {Number(entry.value).toFixed(2)}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
-                    {unit}
-                    {entry?.date ? ` · ${entry.date}` : ""}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={{ fontSize: "14px", color: "#7a8593" }}>
-            Loading latest market prices...
-          </div>
-        )}
-
-        <div
-          style={{
-            fontSize: "11px",
-            color: "#9aa4b0",
-            marginTop: "16px",
-            borderTop: "1px solid #eef1f4",
-            paddingTop: "10px"
-          }}
-        >
-          Live evidence via Tavily + Nemotron
-        </div>
-      </section>
-
-      <section
-        style={{
-          marginBottom: "30px",
-          padding: "20px",
-          border: "1px solid #d9e0e8",
-          borderRadius: "8px",
-          background: "#ffffff"
-        }}
-      >
-        <div
-          style={{
-            fontSize: "14px",
-            fontWeight: "700",
-            letterSpacing: "0.08em",
-            color: "#586474",
-            marginBottom: "16px"
-          }}
-        >
-          GLOBAL LNG FLOWS
-        </div>
-
-        {flowsError ? (
-          <div style={{ fontSize: "14px", color: "#8a4b4b" }}>{flowsError}</div>
-        ) : flows ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "28px"
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  letterSpacing: "0.06em",
-                  color: "#7a8593",
-                  marginBottom: "10px"
-                }}
-              >
-                CHOKEPOINT STATUS
-              </div>
-              {Object.entries(CHOKEPOINT_LABELS).map(([key, label]) => {
-                const entry = flows.chokepoints?.[key];
-                const status = entry?.status || "normal";
-                return (
-                  <div
-                    key={key}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "8px",
-                      padding: "8px 0",
-                      borderTop: "1px solid #eef1f4"
-                    }}
-                  >
-                    <span
-                      style={{
-                        marginTop: "5px",
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: STATUS_COLORS[status] || STATUS_COLORS.normal,
-                        flexShrink: 0
-                      }}
-                    />
-                    <div>
-                      <div style={{ fontSize: "14px", color: "#0B1F3B" }}>{label}</div>
-                      {entry?.note && (
-                        <div style={{ fontSize: "12px", color: "#9aa4b0" }}>
-                          {entry.note}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  letterSpacing: "0.06em",
-                  color: "#7a8593",
-                  marginBottom: "10px"
-                }}
-              >
-                ROUTE TRENDS
-              </div>
-              {Object.entries(CORRIDOR_LABELS).map(([key, label]) => {
-                const entry = flows.corridors?.[key];
-                const trend = entry?.trend || "stable";
-                const display = TREND_DISPLAY[trend] || TREND_DISPLAY.stable;
-                return (
-                  <div
-                    key={key}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      padding: "8px 0",
-                      borderTop: "1px solid #eef1f4"
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "14px", color: "#0B1F3B" }}>{label}</div>
-                      {entry?.note && (
-                        <div style={{ fontSize: "12px", color: "#9aa4b0" }}>
-                          {entry.note}
-                        </div>
-                      )}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "700",
-                        color: display.color,
-                        flexShrink: 0
-                      }}
-                    >
-                      {display.symbol}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div style={{ fontSize: "14px", color: "#7a8593" }}>
-            Loading flow intelligence...
-          </div>
-        )}
-
-        <div
-          style={{
-            fontSize: "11px",
-            color: "#9aa4b0",
-            marginTop: "16px",
-            borderTop: "1px solid #eef1f4",
-            paddingTop: "10px"
-          }}
-        >
-          Chokepoint and corridor status reflect recent reported activity, via Tavily + Nemotron — not live vessel telemetry.
-        </div>
-      </section>
-
-      {dashboard.length > 0 && (
-        <section
-          style={{
-            marginBottom: "30px",
-            padding: "20px",
-            border: "1px solid #d9e0e8",
-            borderRadius: "8px",
-            background: "#ffffff"
-          }}
-        >
-          <div
-            style={{
-              fontSize: "14px",
-              fontWeight: "700",
-              letterSpacing: "0.08em",
-              color: "#586474",
-              marginBottom: "14px"
-            }}
-          >
-            TRACKED HYPOTHESES
-          </div>
-
-          {dashboard.map((item) => (
+        {/* SIDEBAR — quieter context */}
+        <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+          <section style={{ ...cardStyle, marginBottom: "24px" }}>
             <div
-              key={item.hypothesis}
               style={{
                 display: "flex",
-                alignItems: "center",
                 justifyContent: "space-between",
-                gap: "16px",
-                padding: "12px 0",
-                borderTop: "1px solid #eef1f4"
+                alignItems: "baseline",
+                marginBottom: "14px"
               }}
             >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "15px", color: "#0B1F3B" }}>
-                  {item.hypothesis}
-                </div>
-                {item.lastRun && (
-                  <div style={{ fontSize: "12px", color: "#9aa4b0", marginTop: "2px" }}>
-                    Last checked {new Date(item.lastRun).toLocaleString()}
-                  </div>
-                )}
-              </div>
-
-              <Sparkline data={item.history} />
-
-              <div
-                style={{
-                  fontSize: "22px",
-                  fontWeight: "800",
-                  color: "#0B1F3B",
-                  minWidth: "56px",
-                  textAlign: "right"
-                }}
-              >
-                {item.confidence ?? "—"}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {notebook.length > 0 && (
-        <section
-          style={{
-            marginBottom: "30px",
-            padding: "20px",
-            border: "1px solid #d9e0e8",
-            borderRadius: "8px",
-            background: "#ffffff"
-          }}
-        >
-          <div
-            style={{
-              fontSize: "14px",
-              fontWeight: "700",
-              letterSpacing: "0.08em",
-              color: "#586474",
-              marginBottom: "16px"
-            }}
-          >
-            RESEARCH NOTEBOOK
-          </div>
-
-          {notebook.map((entry, i) => {
-            const prior = entry.confidence - entry.delta;
-            return (
-              <div
-                key={`${entry.timestamp}-${i}`}
-                style={{
-                  padding: "14px 0",
-                  borderTop: i > 0 ? "1px solid #eef1f4" : "none"
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    marginBottom: "4px"
-                  }}
-                >
-                  <div style={{ fontSize: "14px", fontWeight: "700", color: "#0B1F3B" }}>
-                    {entry.hypothesis}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#9aa4b0", flexShrink: 0, marginLeft: "12px" }}>
-                    {new Date(entry.timestamp).toLocaleString()}
-                  </div>
-                </div>
-
-                <div style={{ fontSize: "13px", color: "#586474", marginBottom: "6px" }}>
-                  Prior confidence: {prior}% · New evidence: {entry.evidenceCount ?? 0} items ·
-                  New confidence: {entry.confidence}%
-                  {entry.delta !== 0 && (
-                    <span style={{ color: entry.delta > 0 ? "#1e7d34" : "#a13a2c", fontWeight: "700" }}>
-                      {" "}({entry.delta > 0 ? "+" : ""}{entry.delta})
-                    </span>
-                  )}
-                </div>
-
-                {entry.reasoning && (
-                  <div style={{ fontSize: "13px", color: "#0B1F3B", lineHeight: "1.5" }}>
-                    {entry.reasoning}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </section>
-      )}
-
-      <section
-        style={{
-          borderTop: "1px solid #d9e0e8",
-          paddingTop: "30px"
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "30px",
-            marginBottom: "8px"
-          }}
-        >
-          Test a Market Hypothesis
-        </h1>
-
-        <p
-          style={{
-            color: "#586474",
-            lineHeight: "1.6"
-          }}
-        >
-          Challenge a natural gas or LNG market thesis using
-          current evidence and AI reasoning.
-        </p>
-
-        <textarea
-          value={hypothesis}
-          onChange={(e) => setHypothesis(e.target.value)}
-          rows={6}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: "16px",
-            fontSize: "16px",
-            lineHeight: "1.5",
-            border: "1px solid #b8c3cf",
-            borderRadius: "8px"
-          }}
-        />
-
-        <button
-          onClick={analyze}
-          disabled={loading}
-          style={{
-            marginTop: "15px",
-            padding: "12px 22px",
-            fontSize: "16px",
-            fontWeight: "600",
-            cursor: loading ? "default" : "pointer",
-            borderRadius: "6px",
-            border: "none",
-            background: "#0B1F3B",
-            color: "white"
-          }}
-        >
-          {loading ? "Researching live evidence..." : "Research"}
-        </button>
-      </section>
-
-      {result && (
-        <section
-          style={{
-            marginTop: "45px",
-            paddingTop: "30px",
-            borderTop: "1px solid #d9e0e8"
-          }}
-        >
-          {confidence !== null && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                marginBottom: "20px"
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: "700",
-                    letterSpacing: "0.08em",
-                    color: "#586474"
-                  }}
-                >
-                  CONFIDENCE
-                </div>
-                <div
-                  style={{
-                    fontSize: "36px",
-                    fontWeight: "800",
-                    color: "#0B1F3B"
-                  }}
-                >
-                  {confidence}
-                  <span
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: "500",
-                      color: "#7a8593"
-                    }}
-                  >
-                    /100
-                  </span>
-                </div>
-              </div>
-
-              {confidenceDelta !== 0 && (
-                <div
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "999px",
-                    fontSize: "14px",
-                    fontWeight: "700",
-                    background: confidenceDelta > 0 ? "#e6f4ea" : "#fbe9e7",
-                    color: confidenceDelta > 0 ? "#1e7d34" : "#a13a2c"
-                  }}
-                >
-                  {confidenceDelta > 0 ? "▲" : "▼"}{" "}
-                  {Math.abs(confidenceDelta)} since last check
+              <div style={sectionLabelStyle}>MARKETS</div>
+              {marketsUpdatedAt && (
+                <div style={{ fontSize: "10px", color: "#9aa4b0" }}>
+                  {new Date(marketsUpdatedAt).toLocaleTimeString()}
                 </div>
               )}
             </div>
-          )}
 
-          <h2>Research Assessment</h2>
-
-          <div
-            style={{
-              whiteSpace: "pre-wrap",
-              lineHeight: "1.7",
-              fontSize: "16px"
-            }}
-          >
-            {result}
-          </div>
-
-          {sources.length > 0 && (
-            <div style={{ marginTop: "24px" }}>
+            {marketsError ? (
+              <div style={{ fontSize: "13px", color: "#8a4b4b" }}>{marketsError}</div>
+            ) : markets ? (
               <div
                 style={{
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  letterSpacing: "0.06em",
-                  color: "#586474",
-                  marginBottom: "8px"
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+                  gap: "14px"
                 }}
               >
-                SOURCES
+                {Object.entries(MARKET_LABELS).map(([key, { name, unit }]) => {
+                  const entry = markets[key];
+                  return (
+                    <div key={key}>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "700",
+                          letterSpacing: "0.04em",
+                          color: "#7a8593",
+                          marginBottom: "2px"
+                        }}
+                      >
+                        {name.toUpperCase()}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: "700",
+                          color: "#0B1F3B"
+                        }}
+                      >
+                        {entry && entry.value != null ? (
+                          <>
+                            {unit.startsWith("€") ? "€" : "$"}
+                            {Number(entry.value).toFixed(2)}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#9aa4b0" }}>
+                        {unit}
+                        {entry?.date ? ` · ${entry.date}` : ""}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <ul style={{ paddingLeft: "20px", margin: 0 }}>
-                {sources.map((source) => (
-                  <li key={source.id} style={{ marginBottom: "6px" }}>
-                    <a href={source.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1F3B" }}>
-                      {source.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+            ) : (
+              <div style={{ fontSize: "13px", color: "#7a8593" }}>Loading...</div>
+            )}
+
+            <div
+              style={{
+                fontSize: "10px",
+                color: "#9aa4b0",
+                marginTop: "14px",
+                borderTop: "1px solid #eef1f4",
+                paddingTop: "8px"
+              }}
+            >
+              Live evidence via Tavily + Nemotron
             </div>
-          )}
-        </section>
-      )}
+          </section>
+
+          <section style={cardStyle}>
+            <div style={sectionLabelStyle}>GLOBAL LNG FLOWS</div>
+
+            {flowsError ? (
+              <div style={{ fontSize: "13px", color: "#8a4b4b" }}>{flowsError}</div>
+            ) : flows ? (
+              <div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    letterSpacing: "0.04em",
+                    color: "#9aa4b0",
+                    marginBottom: "8px",
+                    marginTop: "4px"
+                  }}
+                >
+                  CHOKEPOINTS
+                </div>
+                {Object.entries(CHOKEPOINT_LABELS).map(([key, label]) => {
+                  const entry = flows.chokepoints?.[key];
+                  const status = entry?.status || "normal";
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        padding: "7px 0",
+                        borderTop: "1px solid #eef1f4"
+                      }}
+                    >
+                      <span
+                        style={{
+                          marginTop: "5px",
+                          width: "7px",
+                          height: "7px",
+                          borderRadius: "50%",
+                          background: STATUS_COLORS[status] || STATUS_COLORS.normal,
+                          flexShrink: 0
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "13px", color: "#0B1F3B" }}>{label}</div>
+                        {entry?.note && (
+                          <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
+                            {entry.note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    letterSpacing: "0.04em",
+                    color: "#9aa4b0",
+                    marginBottom: "8px",
+                    marginTop: "18px"
+                  }}
+                >
+                  ROUTE TRENDS
+                </div>
+                {Object.entries(CORRIDOR_LABELS).map(([key, label]) => {
+                  const entry = flows.corridors?.[key];
+                  const trend = entry?.trend || "stable";
+                  const display = TREND_DISPLAY[trend] || TREND_DISPLAY.stable;
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                        padding: "7px 0",
+                        borderTop: "1px solid #eef1f4"
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "13px", color: "#0B1F3B" }}>{label}</div>
+                        {entry?.note && (
+                          <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
+                            {entry.note}
+                          </div>
+                        )}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "700",
+                          color: display.color,
+                          flexShrink: 0
+                        }}
+                      >
+                        {display.symbol}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: "13px", color: "#7a8593" }}>Loading...</div>
+            )}
+
+            <div
+              style={{
+                fontSize: "10px",
+                color: "#9aa4b0",
+                marginTop: "14px",
+                borderTop: "1px solid #eef1f4",
+                paddingTop: "8px"
+              }}
+            >
+              Reflects recent reported activity, via Tavily + Nemotron — not live vessel telemetry.
+            </div>
+          </section>
+        </div>
+      </div>
     </main>
   );
 }
