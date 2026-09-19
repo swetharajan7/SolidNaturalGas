@@ -36,10 +36,16 @@ export async function POST(request) {
       console.error("KV read failed, defaulting to 50:", kvError);
     }
 
+      const TRACKED_CAP = 8;
+
     try {
-      await kv.sadd("tracked:hypotheses", hypothesis);
+      await kv.zadd("tracked:hypotheses", { score: Date.now(), member: hypothesis });
+      const count = await kv.zcard("tracked:hypotheses");
+      if (count > TRACKED_CAP) {
+        await kv.zremrangebyrank("tracked:hypotheses", 0, count - TRACKED_CAP - 1);
+      }
     } catch (kvError) {
-      console.error("KV sadd (tracked list) failed:", kvError);
+      console.error("KV tracked-list update failed:", kvError);
     }
 
     /*
