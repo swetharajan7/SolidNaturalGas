@@ -255,7 +255,10 @@ Evaluate the hypothesis using the evidence above.
      * OR the cron job) continues from here instead of resetting to 50.
      */
 
-    const lastRun = new Date().toISOString();
+      const lastRun = new Date().toISOString();
+
+    const reasoningMatch = result.match(/CONFIDENCE ASSESSMENT\s*\n+([\s\S]*)/i);
+    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "";
 
     try {
       await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
@@ -264,7 +267,9 @@ Evaluate the hypothesis using the evidence above.
         JSON.stringify({
           confidence: newConfidence,
           delta: newConfidence - startingConfidence,
-          timestamp: lastRun
+          timestamp: lastRun,
+          evidenceCount: sources.length,
+          reasoning
         })
       );
       await kv.ltrim(historyKey, 0, 49);
