@@ -140,4 +140,4 @@ benchmark's value and date. Never invent a number.`
   }
 }
 
-export const revalidate = 1800;
+export const revalidate = 21600; // 6 hours
