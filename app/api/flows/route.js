@@ -1,3 +1,17 @@
+import { kv } from "@vercel/kv";
+
+async function logActivity(message) {
+  try {
+    await kv.lpush(
+      "activity:log",
+      JSON.stringify({ message, timestamp: new Date().toISOString() })
+    );
+    await kv.ltrim("activity:log", 0, 99);
+  } catch (error) {
+    console.error("Activity log write failed:", error);
+  }
+}
+
 async function searchTavily(query) {
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
@@ -127,6 +141,9 @@ trend not supported by the evidence.`,
     );
 
        await logActivity("Checked 6 LNG chokepoints: Panama, Suez, Hormuz, Malacca, Cape of Good Hope, Bosporus");
+    await logActivity("Checked 8 LNG trade corridors");
+
+      await logActivity("Checked 6 LNG chokepoints: Panama, Suez, Hormuz, Malacca, Cape of Good Hope, Bosporus");
     await logActivity("Checked 8 LNG trade corridors");
 
     return Response.json({
