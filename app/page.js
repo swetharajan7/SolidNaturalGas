@@ -104,8 +104,7 @@ export default function Home() {
   const [flowsError, setFlowsError] = useState("");
 
   const [activity, setActivity] = useState([]);
-
-    const [notebook, setNotebook] = useState([]);
+  const [notebook, setNotebook] = useState([]);
 
   async function loadDashboard() {
     try {
@@ -126,7 +125,8 @@ export default function Home() {
       console.error("Activity load failed:", error);
     }
   }
-    async function loadNotebook() {
+
+  async function loadNotebook() {
     try {
       const response = await fetch("/api/notebook");
       const data = await response.json();
@@ -172,7 +172,7 @@ export default function Home() {
       }
     }
 
-       loadMarkets();
+    loadMarkets();
     loadFlows();
     loadDashboard();
     loadActivity();
@@ -211,7 +211,7 @@ export default function Home() {
           typeof data.confidenceDelta === "number" ? data.confidenceDelta : 0
         );
       }
-         setSources(data.sources || []);
+      setSources(data.sources || []);
       loadDashboard();
       loadActivity();
       loadNotebook();
@@ -629,6 +629,50 @@ export default function Home() {
               marginBottom: "14px"
             }}
           >
+            TRACKED HYPOTHESES
+          </div>
+
+          {dashboard.map((item) => (
+            <div
+              key={item.hypothesis}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "16px",
+                padding: "12px 0",
+                borderTop: "1px solid #eef1f4"
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "15px", color: "#0B1F3B" }}>
+                  {item.hypothesis}
+                </div>
+                {item.lastRun && (
+                  <div style={{ fontSize: "12px", color: "#9aa4b0", marginTop: "2px" }}>
+                    Last checked {new Date(item.lastRun).toLocaleString()}
+                  </div>
+                )}
+              </div>
+
+              <Sparkline data={item.history} />
+
+              <div
+                style={{
+                  fontSize: "22px",
+                  fontWeight: "800",
+                  color: "#0B1F3B",
+                  minWidth: "56px",
+                  textAlign: "right"
+                }}
+              >
+                {item.confidence ?? "—"}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
       {notebook.length > 0 && (
         <section
           style={{
@@ -695,49 +739,6 @@ export default function Home() {
               </div>
             );
           })}
-        </section>
-      )}
-            TRACKED HYPOTHESES
-          </div>
-
-          {dashboard.map((item) => (
-            <div
-              key={item.hypothesis}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "16px",
-                padding: "12px 0",
-                borderTop: "1px solid #eef1f4"
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "15px", color: "#0B1F3B" }}>
-                  {item.hypothesis}
-                </div>
-                {item.lastRun && (
-                  <div style={{ fontSize: "12px", color: "#9aa4b0", marginTop: "2px" }}>
-                    Last checked {new Date(item.lastRun).toLocaleString()}
-                  </div>
-                )}
-              </div>
-
-              <Sparkline data={item.history} />
-
-              <div
-                style={{
-                  fontSize: "22px",
-                  fontWeight: "800",
-                  color: "#0B1F3B",
-                  minWidth: "56px",
-                  textAlign: "right"
-                }}
-              >
-                {item.confidence ?? "—"}
-              </div>
-            </div>
-          ))}
         </section>
       )}
 
