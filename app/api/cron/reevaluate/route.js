@@ -127,13 +127,17 @@ line output exactly: CONFIDENCE_SCORE: <integer 0-100>`
   const historyKey = kvKey.replace(/^confidence:/, "history:");
   const lastRun = new Date().toISOString();
 
+  const reasoning = raw.replace(/CONFIDENCE_SCORE:\s*\d{1,3}\s*$/i, "").trim();
+
   await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
   await kv.lpush(
     historyKey,
     JSON.stringify({
       confidence: newConfidence,
       delta: newConfidence - startingConfidence,
-      timestamp: lastRun
+      timestamp: lastRun,
+      evidenceCount: sources.length,
+      reasoning
     })
   );
   await kv.ltrim(historyKey, 0, 49);
