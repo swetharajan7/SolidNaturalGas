@@ -126,6 +126,9 @@ trend not supported by the evidence.`,
       `Evidence:\n\n${routeEvidence}\n\nClassify each corridor.`
     );
 
+       await logActivity("Checked 6 LNG chokepoints: Panama, Suez, Hormuz, Malacca, Cape of Good Hope, Bosporus");
+    await logActivity("Checked 8 LNG trade corridors");
+
     return Response.json({
       chokepoints,
       corridors,
