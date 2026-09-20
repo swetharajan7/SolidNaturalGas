@@ -7,10 +7,10 @@ import { traceable } from "langsmith/traceable";
 // marinetraffic.com's public search — copy the MMSI/IMO shown there.
 // Never guess or invent an identifier here.
 const FLEET = [
-  { mmsi: "538003212", imo: "9337755", name: "Mozah", operator: "Nakilat/Qatargas" }
-  { mmsi: "228391700", imo: "9870159", name: "LNG Adventure", operator: "France" }
-{ mmsi: "228408700", imo: "9893606", name: "LNG Endeavour", operator: "France" }
-{ mmsi: "431177000", imo: "9645748", name: "LNG Mars", operator: "Japan" }
+  { mmsi: "538003212", imo: "9337755", name: "Mozah", operator: "Nakilat/Qatargas" },
+  { mmsi: "228391700", imo: "9870159", name: "LNG Adventure", operator: "France" },
+{ mmsi: "228408700", imo: "9893606", name: "LNG Endeavour", operator: "France" },
+{ mmsi: "431177000", imo: "9645748", name: "LNG Mars", operator: "Japan" },
   // { mmsi: "...", imo: "...", name: "...", operator: "..." },
 ];
 
