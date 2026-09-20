@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv";
+import { traceable } from "langsmith/traceable";
 
 async function logActivity(message) {
   try {
@@ -12,29 +13,32 @@ async function logActivity(message) {
   }
 }
 
-async function searchTavily(query) {
-  const response = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      query,
-      search_depth: "basic",
-      max_results: 4,
-            days: 30,
-      include_answer: false,
-      include_raw_content: false
-    })
-  });
+const searchTavily = traceable(
+  async (query) => {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: "basic",
+        max_results: 4,
+        days: 30,
+        include_answer: false,
+        include_raw_content: false
+      })
+    });
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
-  }
-  return data.results || [];
-}
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
+    }
+    return data.results || [];
+  },
+  { name: "tavily_search", run_type: "retriever" }
+);
 
 function formatEvidence(label, results) {
   if (!results.length) return `${label}: No live sources were returned.`;
@@ -42,6 +46,33 @@ function formatEvidence(label, results) {
     .map((r) => `${label} SOURCE: "${r.title}"\n${r.content}`)
     .join("\n\n");
 }
+
+const callNemotron = traceable(
+  async (systemPrompt, userPrompt) => {
+    const response = await fetch(
+      `${process.env.NEBIUS_BASE_URL}/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: process.env.NEBIUS_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          max_tokens: 1200,
+          temperature: 0,
+          reasoning_effort: "low"
+        })
+      }
+    );
+    return { response, data: await response.json() };
+  },
+  { name: "nemotron_markets_extraction", run_type: "llm" }
+);
 
 export async function GET() {
   try {
@@ -76,20 +107,7 @@ export async function GET() {
      * each labeled with which evidence block it came from.
      */
 
-    const nemotronResponse = await fetch(
-      `${process.env.NEBIUS_BASE_URL}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: process.env.NEBIUS_MODEL,
-          messages: [
-            {
-              role: "system",
-              content: `You extract current energy benchmark prices from search
+    const systemPrompt = `You extract current energy benchmark prices from search
 evidence. Evidence is grouped into blocks labeled HENRYHUB, TTF, JKM, BRENT,
 and WTI — use only the block matching each benchmark, never cross-contaminate.
 Respond with ONLY a JSON object, no markdown, no preamble, in exactly this shape:
@@ -103,21 +121,15 @@ Respond with ONLY a JSON object, no markdown, no preamble, in exactly this shape
 Only extract a price if its date is clearly stated as being within the last
 10 days. If a benchmark's evidence block has no price meeting that freshness
 bar, use null for that benchmark's value and date rather than reporting an
-older reference price. Never invent a number.`
-            },
-            {
-              role: "user",
-              content: `Evidence:\n\n${evidenceBlocks}\n\nExtract all five prices.`
-            }
-          ],
-                    max_tokens: 1200,
-          temperature: 0,
-          reasoning_effort: "low"
-        })
-      }
+older reference price. Never invent a number.`;
+
+    const userPrompt = `Evidence:\n\n${evidenceBlocks}\n\nExtract all five prices.`;
+
+    const { response: nemotronResponse, data: nemotronData } = await callNemotron(
+      systemPrompt,
+      userPrompt
     );
 
-    const nemotronData = await nemotronResponse.json();
     if (!nemotronResponse.ok) {
       console.error("Nebius error:", nemotronData);
       return Response.json(
@@ -143,7 +155,7 @@ older reference price. Never invent a number.`
       );
     }
 
-       await logActivity("Markets updated: Henry Hub, TTF, JKM, Brent, WTI");
+    await logActivity("Markets updated: Henry Hub, TTF, JKM, Brent, WTI");
 
     return Response.json({
       markets: parsed,
