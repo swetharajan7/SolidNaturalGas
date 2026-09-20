@@ -37,7 +37,7 @@ export async function POST(request) {
       console.error("KV read failed, defaulting to 50:", kvError);
     }
 
-      const TRACKED_CAP = 8;
+    const TRACKED_CAP = 8;
 
     try {
       await kv.zadd("tracked:hypotheses", { score: Date.now(), member: hypothesis });
@@ -63,7 +63,7 @@ export async function POST(request) {
       weather, outages and geopolitical developments.
     `;
 
-       const searchTavily = traceable(
+    const searchTavily = traceable(
       async (query) => {
         const response = await fetch("https://api.tavily.com/search", {
           method: "POST",
@@ -132,7 +132,7 @@ ${source.content}
      * Ask Nemotron to reason over the hypothesis AND live evidence.
      */
 
-       const callNemotron = traceable(
+    const callNemotron = traceable(
       async (systemPrompt, userPrompt) => {
         const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
           method: "POST",
@@ -154,9 +154,8 @@ ${source.content}
       },
       { name: "nemotron_reasoning", run_type: "llm" }
     );
-            {
-              role: "system",
-              content: `
+
+    const systemPrompt = `
 You are the reasoning engine for Solid Natural Gas,
 an agentic LNG market intelligence application.
 
@@ -198,12 +197,9 @@ After CONFIDENCE ASSESSMENT, on its own line, output exactly:
 CONFIDENCE_SCORE: <integer 0-100>
 with nothing else on that line. This is parsed by code, so the
 format must be exact.
-`
-            },
+`;
 
-            {
-              role: "user",
-              content: `
+    const userPrompt = `
 MARKET HYPOTHESIS:
 
 ${hypothesis}
@@ -213,17 +209,12 @@ LIVE MARKET EVIDENCE:
 ${evidenceText}
 
 Evaluate the hypothesis using the evidence above.
-`
-            }
-          ],
+`;
 
-          max_tokens: 2200,
-          reasoning_effort: "medium"
-        })
-      }
+    const { response: nemotronResponse, data: nemotronData } = await callNemotron(
+      systemPrompt,
+      userPrompt
     );
-
-    const nemotronData = await nemotronResponse.json();
 
     if (!nemotronResponse.ok) {
       console.error("Nebius error:", nemotronData);
@@ -269,7 +260,7 @@ Evaluate the hypothesis using the evidence above.
      * OR the cron job) continues from here instead of resetting to 50.
      */
 
-      const lastRun = new Date().toISOString();
+    const lastRun = new Date().toISOString();
 
     const reasoningMatch = result.match(/CONFIDENCE ASSESSMENT\s*\n+([\s\S]*)/i);
     const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "";
