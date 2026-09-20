@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv";
+import { traceable } from "langsmith/traceable";
 
 async function logActivity(message) {
   try {
@@ -12,60 +13,66 @@ async function logActivity(message) {
   }
 }
 
-async function searchTavily(query) {
-  const response = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      query,
-      search_depth: "basic",
-      max_results: 4,
-      days: 21,
-      include_answer: false,
-      include_raw_content: false
-    })
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
-  }
-  return data.results || [];
-}
+const searchTavily = traceable(
+  async (query) => {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: "basic",
+        max_results: 4,
+        include_answer: false,
+        include_raw_content: false
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
+    }
+    return data.results || [];
+  },
+  { name: "tavily_search", run_type: "retriever" }
+);
 
 function formatEvidence(label, results) {
   if (!results.length) return `${label}: No live sources were returned.`;
   return results.map((r) => `${label} SOURCE: "${r.title}"\n${r.content}`).join("\n\n");
 }
 
-async function callNemotron(systemPrompt, userPrompt) {
-  const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: process.env.NEBIUS_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      max_tokens: 1500,
-      temperature: 0,
-      reasoning_effort: "low"
-    })
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(`Nemotron failed: ${JSON.stringify(data)}`);
-  const message = data.choices?.[0]?.message;
-  const raw = message?.content || message?.reasoning_content || "";
-  const clean = raw.replace(/```json|```/g, "").trim();
-  const match = clean.match(/\{[\s\S]*\}/);
-  return JSON.parse(match ? match[0] : clean);
-}
+const callNemotron = traceable(
+  async (systemPrompt, userPrompt) => {
+    const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.NEBIUS_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: 1500,
+        temperature: 0,
+        reasoning_effort: "low"
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(`Nemotron failed: ${JSON.stringify(data)}`);
+    const message = data.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning_content || "";
+    const clean = raw.replace(/```json|```/g, "").trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    return JSON.parse(match ? match[0] : clean);
+  },
+  { name: "nemotron_flows_classification", run_type: "llm" }
+);
 
 export async function GET() {
   try {
@@ -140,10 +147,7 @@ trend not supported by the evidence.`,
       `Evidence:\n\n${routeEvidence}\n\nClassify each corridor.`
     );
 
-       await logActivity("Checked 6 LNG chokepoints: Panama, Suez, Hormuz, Malacca, Cape of Good Hope, Bosporus");
-    await logActivity("Checked 8 LNG trade corridors");
-
-      await logActivity("Checked 6 LNG chokepoints: Panama, Suez, Hormuz, Malacca, Cape of Good Hope, Bosporus");
+    await logActivity("Checked 6 LNG chokepoints: Panama, Suez, Hormuz, Malacca, Cape of Good Hope, Bosporus");
     await logActivity("Checked 8 LNG trade corridors");
 
     return Response.json({
@@ -160,4 +164,4 @@ trend not supported by the evidence.`,
   }
 }
 
-export const revalidate = 21600; // 6 hours — flow trends don't shift hour to hour
+export const revalidate = 21600; // 6 hours
