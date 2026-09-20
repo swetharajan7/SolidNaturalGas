@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv";
+import { traceable } from "langsmith/traceable";
 
 function keyFor(hypothesis) {
   const normalized = hypothesis.trim().toLowerCase().replace(/\s+/g, " ");
