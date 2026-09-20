@@ -27,10 +27,10 @@ export async function GET() {
       })
     );
 
-    const merged = perHypothesis
+        const merged = perHypothesis
       .flat()
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, 20);
+      .slice(0, 100);
 
     return Response.json({ entries: merged });
   } catch (error) {
