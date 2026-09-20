@@ -1,1 +1,6 @@
-{ "crons": [ { "path": "/api/cron/reevaluate", "schedule": "0 * * * *" } ] }
+{
+  "crons": [
+    { "path": "/api/cron/reevaluate", "schedule": "0 * * * *" },
+    { "path": "/api/vessels/poll", "schedule": "30 * * * *" }
+  ]
+}
