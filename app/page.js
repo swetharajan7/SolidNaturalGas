@@ -10,6 +10,8 @@ function Sparkline({ data, width = 100, height = 32 }) {
     );
   }
 
+  const [vessels, setVessels] = useState([]);
+
   const values = data.map((d) => d.confidence);
   const min = Math.min(...values);
   const max = Math.max(...values);
