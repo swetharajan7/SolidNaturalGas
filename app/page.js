@@ -599,56 +599,67 @@ export default function Home() {
             </section>
           )}
 
-          {notebook.length > 0 && (
-            <section style={{ ...cardStyle, marginBottom: "24px" }}>
-              <div style={sectionLabelStyle}>RESEARCH NOTEBOOK</div>
+              {notebook.length > 0 && (
+        <section
+          style={{
+            marginBottom: "30px",
+            padding: "20px",
+            border: "1px solid #d9e0e8",
+            borderRadius: "8px",
+            background: "#ffffff"
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              marginBottom: "14px"
+            }}
+          >
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "700",
+                letterSpacing: "0.08em",
+                color: "#586474"
+              }}
+            >
+              RESEARCH NOTEBOOK
+            </div>
+            <a href="/notebook" style={{ fontSize: "13px", color: "#0B1F3B", fontWeight: "600" }}>
+              View full notebook →
+            </a>
+          </div>
 
-              {notebook.map((entry, i) => {
-                const prior = entry.confidence - entry.delta;
-                return (
-                  <div
-                    key={`${entry.timestamp}-${i}`}
-                    style={{
-                      padding: "14px 0",
-                      borderTop: i > 0 ? "1px solid #eef1f4" : "none"
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "baseline",
-                        marginBottom: "4px"
-                      }}
-                    >
-                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#0B1F3B" }}>
-                        {entry.hypothesis}
-                      </div>
-                      <div style={{ fontSize: "11px", color: "#9aa4b0", flexShrink: 0, marginLeft: "12px" }}>
-                        {new Date(entry.timestamp).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: "13px", color: "#586474", marginBottom: "6px" }}>
-                      Prior confidence: {prior}% · New evidence: {entry.evidenceCount ?? 0} items ·
-                      New confidence: {entry.confidence}%
-                      {entry.delta !== 0 && (
-                        <span style={{ color: entry.delta > 0 ? "#1e7d34" : "#a13a2c", fontWeight: "700" }}>
-                          {" "}({entry.delta > 0 ? "+" : ""}{entry.delta})
-                        </span>
-                      )}
-                    </div>
-
-                    {entry.reasoning && (
-                      <div style={{ fontSize: "13px", color: "#0B1F3B", lineHeight: "1.5" }}>
-                        {entry.reasoning}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </section>
-          )}
+          {notebook.slice(0, 3).map((entry, i) => {
+            const prior = entry.confidence - entry.delta;
+            return (
+              <div
+                key={`${entry.timestamp}-${i}`}
+                style={{
+                  padding: "10px 0",
+                  borderTop: i > 0 ? "1px solid #eef1f4" : "none"
+                }}
+              >
+                <div style={{ fontSize: "14px", fontWeight: "700", color: "#0B1F3B" }}>
+                  {entry.hypothesis}
+                </div>
+                <div style={{ fontSize: "12px", color: "#586474" }}>
+                  {prior}% → {entry.confidence}%
+                  {entry.delta !== 0 && (
+                    <span style={{ color: entry.delta > 0 ? "#1e7d34" : "#a13a2c", fontWeight: "700" }}>
+                      {" "}({entry.delta > 0 ? "+" : ""}{entry.delta})
+                    </span>
+                  )}
+                  {" · "}
+                  {new Date(entry.timestamp).toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
         </div>
 
         {/* SIDEBAR — quieter context */}
