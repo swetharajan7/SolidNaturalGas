@@ -10,8 +10,6 @@ function Sparkline({ data, width = 100, height = 32 }) {
     );
   }
 
-  const [vessels, setVessels] = useState([]);
-
   const values = data.map((d) => d.confidence);
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -108,6 +106,8 @@ export default function Home() {
   const [activity, setActivity] = useState([]);
   const [notebook, setNotebook] = useState([]);
 
+    const [vessels, setVessels] = useState([]);
+
   async function loadDashboard() {
     try {
       const response = await fetch("/api/dashboard");
@@ -125,6 +125,15 @@ export default function Home() {
       setActivity(data.entries || []);
     } catch (error) {
       console.error("Activity load failed:", error);
+    }
+  }
+    async function loadVessels() {
+    try {
+      const response = await fetch("/api/vessels");
+      const data = await response.json();
+      setVessels(data.vessels || []);
+    } catch (error) {
+      console.error("Vessels load failed:", error);
     }
   }
 
@@ -174,11 +183,12 @@ export default function Home() {
       }
     }
 
-    loadMarkets();
+        loadMarkets();
     loadFlows();
     loadDashboard();
     loadActivity();
     loadNotebook();
+    loadVessels();
 
     const interval = setInterval(loadActivity, 20000);
     return () => clearInterval(interval);
@@ -743,6 +753,53 @@ export default function Home() {
                     marginTop: "4px"
                   }}
                 >
+          <section style={{ ...cardStyle, marginTop: "24px" }}>
+            <div style={sectionLabelStyle}>PHYSICAL LNG — LIVE</div>
+
+            <div style={{ fontSize: "12px", color: "#9aa4b0", marginBottom: "14px" }}>
+              {vessels.length} tracked carrier{vessels.length !== 1 ? "s" : ""} · real AIS data
+            </div>
+
+            {vessels.map((v) => (
+              <div
+                key={v.name}
+                style={{
+                  padding: "10px 0",
+                  borderTop: "1px solid #eef1f4"
+                }}
+              >
+                <div style={{ fontSize: "13px", fontWeight: "700", color: "#0B1F3B" }}>
+                  {v.name}
+                </div>
+                <div style={{ fontSize: "11px", color: "#9aa4b0" }}>
+                  {v.operator}
+                </div>
+
+                {v.observedAt ? (
+                  <div style={{ fontSize: "12px", color: "#586474", marginTop: "4px" }}>
+                    {v.destination ? `→ ${v.destination}` : "Destination unknown"}
+                    {v.speed != null ? ` · ${v.speed.toFixed(1)} kn` : ""}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "12px", color: "#b8a978", marginTop: "4px" }}>
+                    No AIS signal received yet
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div
+              style={{
+                fontSize: "10px",
+                color: "#9aa4b0",
+                marginTop: "14px",
+                borderTop: "1px solid #eef1f4",
+                paddingTop: "8px"
+              }}
+            >
+              Representative sample, not comprehensive fleet coverage. Terrestrial AIS only — a vessel mid-ocean may show no signal for hours.
+            </div>
+          </section>
                   CHOKEPOINTS
                 </div>
                 {Object.entries(CHOKEPOINT_LABELS).map(([key, label]) => {
