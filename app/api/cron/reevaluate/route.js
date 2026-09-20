@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv";
+import { traceable } from "langsmith/traceable";
 
 function keyFor(hypothesis) {
   const normalized = hypothesis.trim().toLowerCase().replace(/\s+/g, " ");
@@ -24,6 +25,50 @@ const DEFAULT_HYPOTHESES = [
   "European LNG spot prices will strengthen over the next 30 days."
 ];
 
+const searchTavily = traceable(
+  async (query) => {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: "basic",
+        max_results: 5,
+        include_answer: false,
+        include_raw_content: false
+      })
+    });
+    return { response, data: await response.json() };
+  },
+  { name: "tavily_search", run_type: "retriever" }
+);
+
+const callNemotron = traceable(
+  async (systemPrompt, userPrompt) => {
+    const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.NEBIUS_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: 400,
+        reasoning_effort: "low"
+      })
+    });
+    return { response, data: await response.json() };
+  },
+  { name: "nemotron_cron_reevaluation", run_type: "llm" }
+);
+
 async function evaluateOne(hypothesis) {
   const kvKey = keyFor(hypothesis);
 
@@ -46,22 +91,7 @@ async function evaluateOne(hypothesis) {
     weather, outages and geopolitical developments.
   `;
 
-  const tavilyResponse = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      query: searchQuery,
-      search_depth: "basic",
-      max_results: 5,
-      include_answer: false,
-      include_raw_content: false
-    })
-  });
-
-  const tavilyData = await tavilyResponse.json();
+  const { response: tavilyResponse, data: tavilyData } = await searchTavily(searchQuery);
   if (!tavilyResponse.ok) {
     throw new Error(`Tavily failed: ${JSON.stringify(tavilyData)}`);
   }
@@ -80,38 +110,19 @@ async function evaluateOne(hypothesis) {
     ? sources.map((s) => `SOURCE ${s.id}\nTitle: ${s.title}\nEvidence:\n${s.content}`).join("\n\n")
     : "No live sources were returned.";
 
-  const nemotronResponse = await fetch(
-    `${process.env.NEBIUS_BASE_URL}/chat/completions`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: process.env.NEBIUS_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: `You are the reasoning engine for Solid Natural Gas.
+  const systemPrompt = `You are the reasoning engine for Solid Natural Gas.
 Evaluate the hypothesis against the supplied evidence only. The hypothesis
 currently has a confidence score of ${startingConfidence}/100. Weigh the
 new evidence against that starting point; don't swing wildly on weak
 evidence. Respond with 2-3 sentences of reasoning, then on its own final
-line output exactly: CONFIDENCE_SCORE: <integer 0-100>`
-          },
-          {
-            role: "user",
-            content: `Hypothesis: "${hypothesis}"\n\nEvidence:\n${evidenceText}`
-          }
-        ],
-        max_tokens: 400,
-        reasoning_effort: "low"
-      })
-    }
-  );
+line output exactly: CONFIDENCE_SCORE: <integer 0-100>`;
 
-  const nemotronData = await nemotronResponse.json();
+  const userPrompt = `Hypothesis: "${hypothesis}"\n\nEvidence:\n${evidenceText}`;
+
+  const { response: nemotronResponse, data: nemotronData } = await callNemotron(
+    systemPrompt,
+    userPrompt
+  );
   if (!nemotronResponse.ok) {
     throw new Error(`Nemotron failed: ${JSON.stringify(nemotronData)}`);
   }
