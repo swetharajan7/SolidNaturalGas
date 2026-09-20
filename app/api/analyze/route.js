@@ -132,18 +132,28 @@ ${source.content}
      * Ask Nemotron to reason over the hypothesis AND live evidence.
      */
 
-    const nemotronResponse = await fetch(
-      `${process.env.NEBIUS_BASE_URL}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: process.env.NEBIUS_MODEL,
-
-          messages: [
+       const callNemotron = traceable(
+      async (systemPrompt, userPrompt) => {
+        const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: process.env.NEBIUS_MODEL,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
+            max_tokens: 2200,
+            reasoning_effort: "medium"
+          })
+        });
+        return { response, data: await response.json() };
+      },
+      { name: "nemotron_reasoning", run_type: "llm" }
+    );
             {
               role: "system",
               content: `
