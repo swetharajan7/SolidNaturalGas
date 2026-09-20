@@ -9,5 +9,6 @@
     "react": "latest",
     "react-dom": "latest",
     "@vercel/kv": "3.0.0"
+    "langsmith": "latest"
   }
 }
