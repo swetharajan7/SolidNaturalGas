@@ -63,25 +63,28 @@ export async function POST(request) {
       weather, outages and geopolitical developments.
     `;
 
-    const tavilyResponse = await fetch(
-      "https://api.tavily.com/search",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-          search_depth: "basic",
-          max_results: 5,
-          include_answer: false,
-          include_raw_content: false
-        })
-      }
+       const searchTavily = traceable(
+      async (query) => {
+        const response = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            query,
+            search_depth: "basic",
+            max_results: 5,
+            include_answer: false,
+            include_raw_content: false
+          })
+        });
+        return { response, data: await response.json() };
+      },
+      { name: "tavily_search", run_type: "retriever" }
     );
 
-    const tavilyData = await tavilyResponse.json();
+    const { response: tavilyResponse, data: tavilyData } = await searchTavily(searchQuery);
 
     if (!tavilyResponse.ok) {
       console.error("Tavily error:", tavilyData);
