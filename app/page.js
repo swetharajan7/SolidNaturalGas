@@ -295,7 +295,7 @@ export default function Home() {
                     <ul style={{ paddingLeft: "20px", margin: 0 }}>
                       {sources.map((source) => (
                         <li key={source.id} style={{ marginBottom: "6px" }}>
-                          
+                          <a
                             href={source.url}
                             target="_blank"
                             rel="noopener noreferrer"
