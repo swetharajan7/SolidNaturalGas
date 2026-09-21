@@ -103,13 +103,14 @@ export async function POST(request) {
      * Convert Tavily results into evidence for Nemotron.
      */
 
-    const sources = (tavilyData.results || []).map(
+        const sources = (tavilyData.results || []).map(
       (source, index) => ({
         id: index + 1,
         title: source.title,
         url: source.url,
         content: source.content,
-        score: source.score
+        score: source.score,
+        favicon: source.favicon || null
       })
     );
 
@@ -308,11 +309,12 @@ Evaluate the hypothesis using the evidence above.
       previousConfidence: startingConfidence,
       confidenceDelta: newConfidence - startingConfidence,
 
-      sources: sources.map((source) => ({
+           sources: sources.map((source) => ({
         id: source.id,
         title: source.title,
         url: source.url,
-        score: source.score
+        score: source.score,
+        favicon: source.favicon
       })),
 
       usage: {
