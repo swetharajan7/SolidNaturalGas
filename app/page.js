@@ -293,7 +293,7 @@ export default function Home() {
                       SOURCES
                     </div>
                     <ul style={{ paddingLeft: "20px", margin: 0 }}>
-                                           {sources.map((source) => (
+                      {sources.map((source) => (
                         <li key={source.id} style={{ marginBottom: "6px" }}>
                           
                             href={source.url}
