@@ -295,9 +295,24 @@ export default function Home() {
                     <ul style={{ paddingLeft: "20px", margin: 0 }}>
                       {sources.map((source) => (
                         <li key={source.id} style={{ marginBottom: "6px" }}>
-                          <a href={source.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1F3B" }}>
-                            {source.title}
-                          </a>
+                                             
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "#0B1F3B", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                    >
+                      {source.favicon && (
+                        <img
+                          src={source.favicon}
+                          alt=""
+                          width={14}
+                          height={14}
+                          style={{ borderRadius: "2px", flexShrink: 0 }}
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
+                      )}
+                      {source.title}
+                    </a>
                         </li>
                       ))}
                     </ul>
