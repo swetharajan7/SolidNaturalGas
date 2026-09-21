@@ -1,9 +1,23 @@
 import { kv } from "@vercel/kv";
 import { traceable } from "langsmith/traceable";
 
+const ULTRA_MODEL = process.env.NEBIUS_MODEL_ULTRA || "nvidia/Nemotron-3-Ultra-550b-a55b";
+
 function keyFor(hypothesis) {
   const normalized = hypothesis.trim().toLowerCase().replace(/\s+/g, " ");
   return `confidence:${normalized}`;
+}
+
+async function logActivity(message) {
+  try {
+    await kv.lpush(
+      "activity:log",
+      JSON.stringify({ message, timestamp: new Date().toISOString() })
+    );
+    await kv.ltrim("activity:log", 0, 99);
+  } catch (error) {
+    console.error("Activity log write failed:", error);
+  }
 }
 
 const searchTavily = traceable(
@@ -17,17 +31,52 @@ const searchTavily = traceable(
       body: JSON.stringify({
         query,
         search_depth: "basic",
-        max_results: 5,
+        max_results: 4,
         include_answer: false,
         include_raw_content: "markdown"
       })
     });
-    return { response, data: await response.json() };
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
+    }
+    return data.results || [];
   },
   { name: "tavily_search", run_type: "retriever" }
 );
 
-const callNemotron = traceable(
+const callUltraJSON = traceable(
+  async (systemPrompt, userPrompt, maxTokens) => {
+    const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: ULTRA_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: maxTokens,
+        reasoning_effort: "medium"
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Ultra call failed: ${JSON.stringify(data)}`);
+    }
+    const message = data.choices?.[0]?.message;
+    const raw = message?.content || message?.reasoning_content || "";
+    const clean = raw.replace(/```json|```/g, "").trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    return JSON.parse(match ? match[0] : clean);
+  },
+  { name: "nemotron_ultra_planning", run_type: "llm" }
+);
+
+const callUltraReport = traceable(
   async (systemPrompt, userPrompt) => {
     const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
       method: "POST",
@@ -36,7 +85,7 @@ const callNemotron = traceable(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: process.env.NEBIUS_MODEL,
+        model: ULTRA_MODEL,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -47,8 +96,27 @@ const callNemotron = traceable(
     });
     return { response, data: await response.json() };
   },
-  { name: "nemotron_reasoning", run_type: "llm" }
+  { name: "nemotron_ultra_synthesis", run_type: "llm" }
 );
+
+function formatEvidence(sources) {
+  const MAX_RAW_CONTENT_CHARS = 2500;
+  if (!sources.length) return "No live sources were returned.";
+  return sources
+    .map((source) => {
+      const raw = source.raw_content
+        ? source.raw_content.slice(0, MAX_RAW_CONTENT_CHARS)
+        : null;
+      return `
+SOURCE ${source.id}
+Title: ${source.title}
+URL: ${source.url}
+Evidence:
+${raw || source.content}
+`;
+    })
+    .join("\n");
+}
 
 export async function POST(request) {
   try {
@@ -64,8 +132,6 @@ export async function POST(request) {
     /*
      * STEP 0
      * Look up this hypothesis's last known confidence in KV.
-     * Falls back to 50 (no lean) the first time it's ever run,
-     * or if KV isn't reachable for some reason.
      */
 
     const kvKey = keyFor(hypothesis);
@@ -82,7 +148,6 @@ export async function POST(request) {
     }
 
     const TRACKED_CAP = 8;
-
     try {
       await kv.zadd("tracked:hypotheses", { score: Date.now(), member: hypothesis });
       const count = await kv.zcard("tracked:hypotheses");
@@ -94,72 +159,112 @@ export async function POST(request) {
     }
 
     /*
-     * STEP 1
-     * Search the live web with Tavily.
+     * PHASE A — PLANNING
+     * The agent (not hardcoded logic) decides what to search for.
      */
 
-    const searchQuery = `
-      Latest natural gas and LNG market evidence relevant to this hypothesis:
-      "${hypothesis}"
+    let plannedQueries = [
+      `Latest natural gas and LNG market evidence relevant to: "${hypothesis}"`
+    ];
 
-      Focus on LNG spot prices, TTF, JKM, Henry Hub where relevant,
-      European gas storage, LNG supply and demand, shipping,
-      weather, outages and geopolitical developments.
-    `;
-
-    const { response: tavilyResponse, data: tavilyData } = await searchTavily(searchQuery);
-
-    if (!tavilyResponse.ok) {
-      console.error("Tavily error:", tavilyData);
-
-      return Response.json(
-        {
-          error: "Live market search failed.",
-          details: tavilyData
-        },
-        { status: tavilyResponse.status }
+    try {
+      const plan = await callUltraJSON(
+        `You are a research planner for an LNG/natural gas market intelligence
+agent. Given a hypothesis and its current confidence score, propose 1 to 3
+specific, targeted web search queries that would gather the best evidence to
+evaluate it. Prefer distinct angles (e.g. price data, supply/shipping
+disruptions, policy) over near-duplicate queries. Respond with ONLY a JSON
+object: {"queries": ["...", "..."]}`,
+        `Hypothesis: "${hypothesis}"\nCurrent confidence: ${startingConfidence}/100`,
+        300
       );
+      if (Array.isArray(plan.queries) && plan.queries.length > 0) {
+        plannedQueries = plan.queries.slice(0, 3);
+      }
+    } catch (error) {
+      console.error("Planning phase failed, using fallback query:", error);
+    }
+
+    await logActivity(
+      `Agent planned ${plannedQueries.length} search${plannedQueries.length > 1 ? "es" : ""} for "${hypothesis}": ${plannedQueries.join(" | ")}`
+    );
+
+    /*
+     * PHASE B — INITIAL EVIDENCE GATHERING
+     */
+
+    const initialResultSets = await Promise.all(
+      plannedQueries.map((q) => searchTavily(q).catch((err) => {
+        console.error("A planned search failed:", err);
+        return [];
+      }))
+    );
+
+    let sources = initialResultSets.flat().map((source, index) => ({
+      id: index + 1,
+      title: source.title,
+      url: source.url,
+      content: source.content,
+      score: source.score,
+      favicon: source.favicon || null,
+      raw_content: source.raw_content || null
+    }));
+
+    await logActivity(
+      `Queried live evidence for "${hypothesis}" (${sources.length} sources)`
+    );
+
+    /*
+     * PHASE C — GAP CHECK
+     * The agent judges whether its own evidence is sufficient, or
+     * requests one targeted follow-up search before finalizing.
+     */
+
+    let followUpQuery = null;
+    try {
+      const gapCheck = await callUltraJSON(
+        `You are evaluating whether gathered evidence is sufficient to assess
+a market hypothesis, or whether one more targeted search is needed. Only
+request a follow-up if evidence is clearly thin, one-sided, or missing a key
+angle. Respond with ONLY a JSON object:
+{"needsMoreEvidence": true|false, "followUpQuery": "<specific query>" or null}`,
+        `Hypothesis: "${hypothesis}"\n\nEvidence gathered:\n${formatEvidence(sources)}`,
+        250
+      );
+      if (gapCheck.needsMoreEvidence && gapCheck.followUpQuery) {
+        followUpQuery = gapCheck.followUpQuery;
+      }
+    } catch (error) {
+      console.error("Gap-check phase failed, proceeding with current evidence:", error);
     }
 
     /*
-     * STEP 2
-     * Convert Tavily results into evidence for Nemotron.
+     * PHASE D — CONDITIONAL FOLLOW-UP (at most one round)
      */
 
-    const sources = (tavilyData.results || []).map(
-      (source, index) => ({
-        id: index + 1,
-        title: source.title,
-        url: source.url,
-        content: source.content,
-        score: source.score,
-        favicon: source.favicon || null,
-        raw_content: source.raw_content || null
-      })
-    );
-
-    const MAX_RAW_CONTENT_CHARS = 2500;
-
-    const evidenceText = sources.length
-      ? sources
-          .map((source) => {
-            const raw = source.raw_content
-              ? source.raw_content.slice(0, MAX_RAW_CONTENT_CHARS)
-              : null;
-            return `
-SOURCE ${source.id}
-Title: ${source.title}
-URL: ${source.url}
-Evidence:
-${raw || source.content}
-`;
-          })
-          .join("\n")
-      : "No live sources were returned.";
+    if (followUpQuery) {
+      await logActivity(`Agent requested additional evidence: "${followUpQuery}"`);
+      try {
+        const followUpResults = await searchTavily(followUpQuery);
+        const nextId = sources.length + 1;
+        const newSources = followUpResults.map((source, index) => ({
+          id: nextId + index,
+          title: source.title,
+          url: source.url,
+          content: source.content,
+          score: source.score,
+          favicon: source.favicon || null,
+          raw_content: source.raw_content || null
+        }));
+        sources = sources.concat(newSources);
+      } catch (error) {
+        console.error("Follow-up search failed:", error);
+      }
+    }
 
     /*
-     * STEP 3
-     * Ask Nemotron to reason over the hypothesis AND live evidence.
+     * PHASE E — FINAL SYNTHESIS
+     * Same report format as before, so the frontend needs no changes.
      */
 
     const systemPrompt = `
@@ -211,38 +316,27 @@ MARKET HYPOTHESIS:
 
 ${hypothesis}
 
-LIVE MARKET EVIDENCE:
+LIVE MARKET EVIDENCE (gathered by the agent's own research plan):
 
-${evidenceText}
+${formatEvidence(sources)}
 
 Evaluate the hypothesis using the evidence above.
 `;
 
-    const { response: nemotronResponse, data: nemotronData } = await callNemotron(
+    const { response: nemotronResponse, data: nemotronData } = await callUltraReport(
       systemPrompt,
       userPrompt
     );
 
     if (!nemotronResponse.ok) {
       console.error("Nebius error:", nemotronData);
-
       return Response.json(
-        {
-          error: "Nemotron analysis failed.",
-          details: nemotronData
-        },
+        { error: "Nemotron analysis failed.", details: nemotronData },
         { status: nemotronResponse.status }
       );
     }
 
-    /*
-     * STEP 4
-     * Extract the Nemotron response, strip the CONFIDENCE_SCORE line
-     * out of the displayed text, and parse the score.
-     */
-
     const message = nemotronData.choices?.[0]?.message;
-
     const rawResult =
       message?.content ||
       message?.reasoning_content ||
@@ -255,20 +349,11 @@ Evaluate the hypothesis using the evidence above.
       newConfidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
     }
 
-    // Strip the machine-readable line so it doesn't show up in the UI
     const result = rawResult
       .replace(/^\s*\*{0,2}\s*CONFIDENCE_SCORE:\s*\d{1,3}\s*\*{0,2}\s*$/gim, "")
       .trim();
 
-    /*
-     * STEP 5
-     * Persist the new confidence + append to history in KV, keyed by
-     * this hypothesis, so the next run (from this page, the dashboard,
-     * OR the cron job) continues from here instead of resetting to 50.
-     */
-
     const lastRun = new Date().toISOString();
-
     const reasoningMatch = result.match(/CONFIDENCE ASSESSMENT\s*\n+([\s\S]*)/i);
     const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "";
 
@@ -289,13 +374,17 @@ Evaluate the hypothesis using the evidence above.
       console.error("KV write failed (result still returned):", kvError);
     }
 
+    await logActivity(
+      `Hypothesis updated: "${hypothesis}" ${startingConfidence}% → ${newConfidence}%`
+    );
+
     console.log(
-      "Solid Natural Gas analysis:",
+      "Solid Natural Gas analysis (self-directed):",
       JSON.stringify(
         {
-          tavilyUsage: tavilyData.usage,
-          nemotronUsage: nemotronData.usage,
-          finishReason: nemotronData.choices?.[0]?.finish_reason,
+          plannedQueries,
+          followUpQuery,
+          totalSources: sources.length,
           confidenceDelta: newConfidence - startingConfidence
         },
         null,
@@ -303,18 +392,11 @@ Evaluate the hypothesis using the evidence above.
       )
     );
 
-    /*
-     * STEP 6
-     * Return analysis + source list + confidence to the website.
-     */
-
     return Response.json({
       result,
-
       confidence: newConfidence,
       previousConfidence: startingConfidence,
       confidenceDelta: newConfidence - startingConfidence,
-
       sources: sources.map((source) => ({
         id: source.id,
         title: source.title,
@@ -322,24 +404,17 @@ Evaluate the hypothesis using the evidence above.
         score: source.score,
         favicon: source.favicon
       })),
-
-      usage: {
-        tavily: tavilyData.usage || null,
-        nemotron: nemotronData.usage || null
-      },
-
-      finish_reason: nemotronData.choices?.[0]?.finish_reason || null
+      plannedQueries,
+      followUpQuery
     });
 
   } catch (error) {
     console.error("Solid Natural Gas route error:", error);
-
     return Response.json(
-      {
-        error: "Unable to analyze the market hypothesis.",
-        details: error.message
-      },
+      { error: "Unable to analyze the market hypothesis.", details: error.message },
       { status: 500 }
     );
   }
 }
+
+export const maxDuration = 90;
