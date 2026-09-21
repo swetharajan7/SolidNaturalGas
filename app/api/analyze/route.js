@@ -28,10 +28,11 @@ const searchTavily = traceable(
         Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
+           body: JSON.stringify({
         query,
         search_depth: "basic",
         max_results: 4,
+        days: 21,
         include_answer: false,
         include_raw_content: "markdown"
       })
