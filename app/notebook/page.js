@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
+import NavBar from "../components/NavBar";
 import Link from "next/link";
 
 export default function NotebookPage() {
@@ -32,50 +32,7 @@ export default function NotebookPage() {
         fontFamily: "Arial, sans-serif"
       }}
     >
-      <nav
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "22px 0",
-          borderBottom: "1px solid #d9e0e8",
-          marginBottom: "35px"
-        }}
-      >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "14px", textDecoration: "none" }}>
-          <div
-            style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #eaf3ff 0%, #fff0e0 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0
-            }}
-          >
-            <Image src="/logo.png" alt="Solid Natural Gas" width={34} height={34} priority />
-          </div>
-          <span
-            style={{
-              fontSize: "20px",
-              fontWeight: "800",
-              letterSpacing: "-0.02em",
-              background: "linear-gradient(90deg, #d85a1e 0%, #0B1F3B 60%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text"
-            }}
-          >
-            Solid Natural Gas
-          </span>
-        </Link>
-
-        <Link href="/" style={{ fontSize: "14px", color: "#586474", textDecoration: "none" }}>
-          ← Back to home
-        </Link>
-      </nav>
+           <NavBar />
 
       <header style={{ marginBottom: "30px" }}>
         <h1 style={{ fontSize: "28px", marginBottom: "8px" }}>Research Notebook</h1>
