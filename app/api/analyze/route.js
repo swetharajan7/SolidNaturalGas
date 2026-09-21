@@ -6,6 +6,50 @@ function keyFor(hypothesis) {
   return `confidence:${normalized}`;
 }
 
+const searchTavily = traceable(
+  async (query) => {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: "basic",
+        max_results: 5,
+        include_answer: false,
+        include_raw_content: "markdown"
+      })
+    });
+    return { response, data: await response.json() };
+  },
+  { name: "tavily_search", run_type: "retriever" }
+);
+
+const callNemotron = traceable(
+  async (systemPrompt, userPrompt) => {
+    const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.NEBIUS_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: 2200,
+        reasoning_effort: "medium"
+      })
+    });
+    return { response, data: await response.json() };
+  },
+  { name: "nemotron_reasoning", run_type: "llm" }
+);
+
 export async function POST(request) {
   try {
     const { hypothesis } = await request.json();
@@ -63,27 +107,6 @@ export async function POST(request) {
       weather, outages and geopolitical developments.
     `;
 
-    const searchTavily = traceable(
-      async (query) => {
-        const response = await fetch("https://api.tavily.com/search", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            query,
-            search_depth: "basic",
-            max_results: 5,
-            include_answer: false,
-            include_raw_content: false
-          })
-        });
-        return { response, data: await response.json() };
-      },
-      { name: "tavily_search", run_type: "retriever" }
-    );
-
     const { response: tavilyResponse, data: tavilyData } = await searchTavily(searchQuery);
 
     if (!tavilyResponse.ok) {
@@ -103,28 +126,34 @@ export async function POST(request) {
      * Convert Tavily results into evidence for Nemotron.
      */
 
-        const sources = (tavilyData.results || []).map(
+    const sources = (tavilyData.results || []).map(
       (source, index) => ({
         id: index + 1,
         title: source.title,
         url: source.url,
         content: source.content,
         score: source.score,
-        favicon: source.favicon || null
+        favicon: source.favicon || null,
+        raw_content: source.raw_content || null
       })
     );
 
+    const MAX_RAW_CONTENT_CHARS = 2500;
+
     const evidenceText = sources.length
       ? sources
-          .map(
-            (source) => `
+          .map((source) => {
+            const raw = source.raw_content
+              ? source.raw_content.slice(0, MAX_RAW_CONTENT_CHARS)
+              : null;
+            return `
 SOURCE ${source.id}
 Title: ${source.title}
 URL: ${source.url}
 Evidence:
-${source.content}
-`
-          )
+${raw || source.content}
+`;
+          })
           .join("\n")
       : "No live sources were returned.";
 
@@ -132,29 +161,6 @@ ${source.content}
      * STEP 3
      * Ask Nemotron to reason over the hypothesis AND live evidence.
      */
-
-    const callNemotron = traceable(
-      async (systemPrompt, userPrompt) => {
-        const response = await fetch(`${process.env.NEBIUS_BASE_URL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: process.env.NEBIUS_MODEL,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            max_tokens: 2200,
-            reasoning_effort: "medium"
-          })
-        });
-        return { response, data: await response.json() };
-      },
-      { name: "nemotron_reasoning", run_type: "llm" }
-    );
 
     const systemPrompt = `
 You are the reasoning engine for Solid Natural Gas,
@@ -309,7 +315,7 @@ Evaluate the hypothesis using the evidence above.
       previousConfidence: startingConfidence,
       confidenceDelta: newConfidence - startingConfidence,
 
-           sources: sources.map((source) => ({
+      sources: sources.map((source) => ({
         id: source.id,
         title: source.title,
         url: source.url,
