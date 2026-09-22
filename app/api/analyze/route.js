@@ -3,12 +3,12 @@ import { traceable } from "langsmith/traceable";
 
 const ULTRA_MODEL = process.env.NEBIUS_MODEL_ULTRA || "nvidia/Nemotron-3-Ultra-550b-a55b";
 
-function keyFor(hypothesis) {
+export function keyFor(hypothesis) {
   const normalized = hypothesis.trim().toLowerCase().replace(/\s+/g, " ");
   return `confidence:${normalized}`;
 }
 
-async function logActivity(message) {
+export async function logActivity(message) {
   try {
     await kv.lpush(
       "activity:log",
@@ -51,7 +51,6 @@ const searchTavily = traceable(
         max_results: 4,
         time_range: params.time_range,
         include_answer: false,
-        // CHANGED: raw content now comes from Tavily Extract instead
         include_raw_content: false,
         exclude_domains: [
           "cotinsight.com",
@@ -79,10 +78,6 @@ const searchTavily = traceable(
   { name: "tavily_search", run_type: "retriever" }
 );
 
-/*
- * NEW: Tavily Extract — pulls the chunks of each page most relevant
- * to the hypothesis, instead of just the first N characters.
- */
 const extractTavily = traceable(
   async (urls, query) => {
     if (!urls.length) return new Map();
@@ -109,7 +104,6 @@ const extractTavily = traceable(
   { name: "tavily_extract", run_type: "retriever" }
 );
 
-// NEW: fill in raw_content for any sources that don't have it yet
 async function enrichSources(sources, hypothesis) {
   const needed = sources.filter((s) => !s.raw_content).map((s) => s.url);
   if (!needed.length) return sources;
@@ -124,7 +118,6 @@ async function enrichSources(sources, hypothesis) {
   }
 }
 
-// NEW: drop duplicate URLs and renumber source ids 1..N
 function dedupeByUrl(sources) {
   const seen = new Set();
   return sources
@@ -205,35 +198,36 @@ ${raw || source.content}
     .join("\n");
 }
 
-export async function POST(request) {
+/*
+ * Runs the full agent pipeline for one hypothesis.
+ * trigger: "user" (someone clicked Analyze) or "cron" (scheduled re-run).
+ * Throws on failure; errors from the synthesis call carry .status and .details.
+ */
+export async function analyzeHypothesis(hypothesis, { trigger = "user" } = {}) {
+  const isScheduled = trigger === "cron";
+  const label = isScheduled ? "[Scheduled] " : "";
+
+  /*
+   * STEP 0
+   * Look up this hypothesis's last known confidence in KV.
+   */
+
+  const kvKey = keyFor(hypothesis);
+  const historyKey = kvKey.replace(/^confidence:/, "history:");
+  let startingConfidence = 50;
+
   try {
-    const { hypothesis } = await request.json();
-
-    if (!hypothesis) {
-      return Response.json(
-        { error: "Please enter a market hypothesis." },
-        { status: 400 }
-      );
+    const stored = await kv.get(kvKey);
+    if (stored && typeof stored.confidence === "number") {
+      startingConfidence = stored.confidence;
     }
+  } catch (kvError) {
+    console.error("KV read failed, defaulting to 50:", kvError);
+  }
 
-    /*
-     * STEP 0
-     * Look up this hypothesis's last known confidence in KV.
-     */
-
-    const kvKey = keyFor(hypothesis);
-    const historyKey = kvKey.replace(/^confidence:/, "history:");
-    let startingConfidence = 50;
-
-    try {
-      const stored = await kv.get(kvKey);
-      if (stored && typeof stored.confidence === "number") {
-        startingConfidence = stored.confidence;
-      }
-    } catch (kvError) {
-      console.error("KV read failed, defaulting to 50:", kvError);
-    }
-
+  // Only user-initiated runs add to / reorder the tracked list, so the
+  // scheduled job never changes which hypotheses are being tracked.
+  if (!isScheduled) {
     const TRACKED_CAP = 8;
     try {
       await kv.zadd("tracked:hypotheses", { score: Date.now(), member: hypothesis });
@@ -244,123 +238,118 @@ export async function POST(request) {
     } catch (kvError) {
       console.error("KV tracked-list update failed:", kvError);
     }
+  }
 
-    /*
-     * PHASE A — PLANNING
-     * The agent (not hardcoded logic) decides what to search for.
-     */
+  /*
+   * PHASE A — PLANNING
+   */
 
-    let plannedQueries = [
-      `Latest natural gas and LNG market evidence relevant to: "${hypothesis}"`
-    ];
+  let plannedQueries = [
+    `Latest natural gas and LNG market evidence relevant to: "${hypothesis}"`
+  ];
 
-    try {
-      const plan = await callUltraJSON(
-        `You are a research planner for an LNG/natural gas market intelligence
+  try {
+    const plan = await callUltraJSON(
+      `You are a research planner for an LNG/natural gas market intelligence
 agent. Given a hypothesis and its current confidence score, propose 1 to 3
 specific, targeted web search queries that would gather the best evidence to
 evaluate it. Prefer distinct angles (e.g. price data, supply/shipping
 disruptions, policy) over near-duplicate queries. Respond with ONLY a JSON
 object: {"queries": ["...", "..."]}`,
-        `Hypothesis: "${hypothesis}"\nCurrent confidence: ${startingConfidence}/100`,
-        300
-      );
-      if (Array.isArray(plan.queries) && plan.queries.length > 0) {
-        plannedQueries = plan.queries.slice(0, 3);
-      }
-    } catch (error) {
-      console.error("Planning phase failed, using fallback query:", error);
+      `Hypothesis: "${hypothesis}"\nCurrent confidence: ${startingConfidence}/100`,
+      300
+    );
+    if (Array.isArray(plan.queries) && plan.queries.length > 0) {
+      plannedQueries = plan.queries.slice(0, 3);
     }
+  } catch (error) {
+    console.error("Planning phase failed, using fallback query:", error);
+  }
 
-    await logActivity(
-      `Agent planned ${plannedQueries.length} search${plannedQueries.length > 1 ? "es" : ""} for "${hypothesis}": ${plannedQueries.join(" | ")}`
-    );
+  await logActivity(
+    `${label}Agent planned ${plannedQueries.length} search${plannedQueries.length > 1 ? "es" : ""} for "${hypothesis}": ${plannedQueries.join(" | ")}`
+  );
 
-    /*
-     * PHASE B — INITIAL EVIDENCE GATHERING
-     */
+  /*
+   * PHASE B — INITIAL EVIDENCE GATHERING
+   */
 
-    const initialResultSets = await Promise.all(
-      plannedQueries.map((q) => searchTavily(q).catch((err) => {
-        console.error("A planned search failed:", err);
-        return [];
-      }))
-    );
+  const initialResultSets = await Promise.all(
+    plannedQueries.map((q) => searchTavily(q).catch((err) => {
+      console.error("A planned search failed:", err);
+      return [];
+    }))
+  );
 
-    let sources = initialResultSets.flat().map((source, index) => ({
-      id: index + 1,
-      title: source.title,
-      url: source.url,
-      content: source.content,
-      score: source.score,
-      favicon: source.favicon || null,
-      raw_content: null
-    }));
+  let sources = initialResultSets.flat().map((source, index) => ({
+    id: index + 1,
+    title: source.title,
+    url: source.url,
+    content: source.content,
+    score: source.score,
+    favicon: source.favicon || null,
+    raw_content: null
+  }));
 
-    // NEW: remove duplicate URLs, then extract relevant chunks
-    sources = dedupeByUrl(sources);
-    sources = await enrichSources(sources, hypothesis);
+  sources = dedupeByUrl(sources);
+  sources = await enrichSources(sources, hypothesis);
 
-    await logActivity(
-      `Queried live evidence for "${hypothesis}" (${sources.length} sources)`
-    );
+  await logActivity(
+    `${label}Queried live evidence for "${hypothesis}" (${sources.length} sources)`
+  );
 
-    /*
-     * PHASE C — GAP CHECK
-     * The agent judges whether its own evidence is sufficient, or
-     * requests one targeted follow-up search before finalizing.
-     */
+  /*
+   * PHASE C — GAP CHECK
+   */
 
-    let followUpQuery = null;
-    try {
-      const gapCheck = await callUltraJSON(
-        `You are evaluating whether gathered evidence is sufficient to assess
+  let followUpQuery = null;
+  try {
+    const gapCheck = await callUltraJSON(
+      `You are evaluating whether gathered evidence is sufficient to assess
 a market hypothesis, or whether one more targeted search is needed. Only
 request a follow-up if evidence is clearly thin, one-sided, or missing a key
 angle. Respond with ONLY a JSON object:
 {"needsMoreEvidence": true|false, "followUpQuery": "<specific query>" or null}`,
-        `Hypothesis: "${hypothesis}"\n\nEvidence gathered:\n${formatEvidence(sources)}`,
-        250
-      );
-      if (gapCheck.needsMoreEvidence && gapCheck.followUpQuery) {
-        followUpQuery = gapCheck.followUpQuery;
-      }
+      `Hypothesis: "${hypothesis}"\n\nEvidence gathered:\n${formatEvidence(sources)}`,
+      250
+    );
+    if (gapCheck.needsMoreEvidence && gapCheck.followUpQuery) {
+      followUpQuery = gapCheck.followUpQuery;
+    }
+  } catch (error) {
+    console.error("Gap-check phase failed, proceeding with current evidence:", error);
+  }
+
+  /*
+   * PHASE D — CONDITIONAL FOLLOW-UP (at most one round)
+   */
+
+  if (followUpQuery) {
+    await logActivity(`${label}Agent requested additional evidence: "${followUpQuery}"`);
+    try {
+      const followUpResults = await searchTavily(followUpQuery);
+      const nextId = sources.length + 1;
+      const newSources = followUpResults.map((source, index) => ({
+        id: nextId + index,
+        title: source.title,
+        url: source.url,
+        content: source.content,
+        score: source.score,
+        favicon: source.favicon || null,
+        raw_content: null
+      }));
+      sources = dedupeByUrl(sources.concat(newSources));
+      sources = await enrichSources(sources, hypothesis);
     } catch (error) {
-      console.error("Gap-check phase failed, proceeding with current evidence:", error);
+      console.error("Follow-up search failed:", error);
     }
+  }
 
-    /*
-     * PHASE D — CONDITIONAL FOLLOW-UP (at most one round)
-     */
+  /*
+   * PHASE E — FINAL SYNTHESIS
+   */
 
-    if (followUpQuery) {
-      await logActivity(`Agent requested additional evidence: "${followUpQuery}"`);
-      try {
-        const followUpResults = await searchTavily(followUpQuery);
-        const nextId = sources.length + 1;
-        const newSources = followUpResults.map((source, index) => ({
-          id: nextId + index,
-          title: source.title,
-          url: source.url,
-          content: source.content,
-          score: source.score,
-          favicon: source.favicon || null,
-          raw_content: null
-        }));
-        // CHANGED: dedupe, then extract only the new URLs
-        sources = dedupeByUrl(sources.concat(newSources));
-        sources = await enrichSources(sources, hypothesis);
-      } catch (error) {
-        console.error("Follow-up search failed:", error);
-      }
-    }
-
-    /*
-     * PHASE E — FINAL SYNTHESIS
-     * Same report format as before, so the frontend needs no changes.
-     */
-
-    const systemPrompt = `
+  const systemPrompt = `
 You are the reasoning engine for Solid Natural Gas,
 an agentic LNG market intelligence application.
 
@@ -404,7 +393,7 @@ with nothing else on that line. This is parsed by code, so the
 format must be exact.
 `;
 
-    const userPrompt = `
+  const userPrompt = `
 MARKET HYPOTHESIS:
 
 ${hypothesis}
@@ -416,98 +405,90 @@ ${formatEvidence(sources)}
 Evaluate the hypothesis using the evidence above.
 `;
 
-    const { response: nemotronResponse, data: nemotronData } = await callUltraReport(
-      systemPrompt,
-      userPrompt
-    );
+  const { response: nemotronResponse, data: nemotronData } = await callUltraReport(
+    systemPrompt,
+    userPrompt
+  );
 
-    if (!nemotronResponse.ok) {
-      console.error("Nebius error:", nemotronData);
-      return Response.json(
-        { error: "Nemotron analysis failed.", details: nemotronData },
-        { status: nemotronResponse.status }
-      );
-    }
-
-    const message = nemotronData.choices?.[0]?.message;
-    const rawResult =
-      message?.content ||
-      message?.reasoning_content ||
-      nemotronData.choices?.[0]?.text ||
-      "";
-
-    let newConfidence = startingConfidence;
-    const match = rawResult.match(/CONFIDENCE_SCORE:\s*(\d{1,3})/i);
-    if (match) {
-      newConfidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
-    }
-
-    const result = rawResult
-      .replace(/^\s*\*{0,2}\s*CONFIDENCE_SCORE:\s*\d{1,3}\s*\*{0,2}\s*$/gim, "")
-      .trim();
-
-    const lastRun = new Date().toISOString();
-    const reasoningMatch = result.match(/CONFIDENCE ASSESSMENT\s*\n+([\s\S]*)/i);
-    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "";
-
-    try {
-      await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
-      await kv.lpush(
-        historyKey,
-        JSON.stringify({
-          confidence: newConfidence,
-          delta: newConfidence - startingConfidence,
-          timestamp: lastRun,
-          evidenceCount: sources.length,
-          reasoning
-        })
-      );
-      await kv.ltrim(historyKey, 0, 49);
-    } catch (kvError) {
-      console.error("KV write failed (result still returned):", kvError);
-    }
-
-    await logActivity(
-      `Hypothesis updated: "${hypothesis}" ${startingConfidence}% → ${newConfidence}%`
-    );
-
-    console.log(
-      "Solid Natural Gas analysis (self-directed):",
-      JSON.stringify(
-        {
-          plannedQueries,
-          followUpQuery,
-          totalSources: sources.length,
-          confidenceDelta: newConfidence - startingConfidence
-        },
-        null,
-        2
-      )
-    );
-
-    return Response.json({
-      result,
-      confidence: newConfidence,
-      previousConfidence: startingConfidence,
-      confidenceDelta: newConfidence - startingConfidence,
-      sources: sources.map((source) => ({
-        id: source.id,
-        title: source.title,
-        url: source.url,
-        score: source.score,
-        favicon: source.favicon
-      })),
-      plannedQueries,
-      followUpQuery
-    });
-
-  } catch (error) {
-    console.error("Solid Natural Gas route error:", error);
-    return Response.json(
-      { error: "Unable to analyze the market hypothesis.", details: error.message },
-      { status: 500 }
-    );
+  if (!nemotronResponse.ok) {
+    console.error("Nebius error:", nemotronData);
+    const err = new Error("Nemotron analysis failed.");
+    err.status = nemotronResponse.status;
+    err.details = nemotronData;
+    throw err;
   }
-}
 
-export const maxDuration = 90;
+  const message = nemotronData.choices?.[0]?.message;
+  const rawResult =
+    message?.content ||
+    message?.reasoning_content ||
+    nemotronData.choices?.[0]?.text ||
+    "";
+
+  let newConfidence = startingConfidence;
+  const match = rawResult.match(/CONFIDENCE_SCORE:\s*(\d{1,3})/i);
+  if (match) {
+    newConfidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
+  }
+
+  const result = rawResult
+    .replace(/^\s*\*{0,2}\s*CONFIDENCE_SCORE:\s*\d{1,3}\s*\*{0,2}\s*$/gim, "")
+    .trim();
+
+  const lastRun = new Date().toISOString();
+  const reasoningMatch = result.match(/CONFIDENCE ASSESSMENT\s*\n+([\s\S]*)/i);
+  const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "";
+
+  try {
+    await kv.set(kvKey, { confidence: newConfidence, hypothesis, lastRun });
+    await kv.lpush(
+      historyKey,
+      JSON.stringify({
+        confidence: newConfidence,
+        delta: newConfidence - startingConfidence,
+        timestamp: lastRun,
+        evidenceCount: sources.length,
+        reasoning,
+        trigger
+      })
+    );
+    await kv.ltrim(historyKey, 0, 49);
+  } catch (kvError) {
+    console.error("KV write failed (result still returned):", kvError);
+  }
+
+  await logActivity(
+    `${label}Hypothesis updated: "${hypothesis}" ${startingConfidence}% → ${newConfidence}%`
+  );
+
+  console.log(
+    "Solid Natural Gas analysis (self-directed):",
+    JSON.stringify(
+      {
+        trigger,
+        plannedQueries,
+        followUpQuery,
+        totalSources: sources.length,
+        confidenceDelta: newConfidence - startingConfidence
+      },
+      null,
+      2
+    )
+  );
+
+  return {
+    result,
+    confidence: newConfidence,
+    previousConfidence: startingConfidence,
+    confidenceDelta: newConfidence - startingConfidence,
+    sources: sources.map((source) => ({
+      id: source.id,
+      title: source.title,
+      url: source.url,
+      score: source.score,
+      favicon: source.favicon
+    })),
+    plannedQueries,
+    followUpQuery
+  };
+}
