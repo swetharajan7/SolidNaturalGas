@@ -51,7 +51,8 @@ const searchTavily = traceable(
         max_results: 4,
         time_range: params.time_range,
         include_answer: false,
-        include_raw_content: "markdown",
+        // CHANGED: raw content now comes from Tavily Extract instead
+        include_raw_content: false,
         exclude_domains: [
           "cotinsight.com",
           "brentchart.com",
@@ -77,6 +78,59 @@ const searchTavily = traceable(
   },
   { name: "tavily_search", run_type: "retriever" }
 );
+
+/*
+ * NEW: Tavily Extract — pulls the chunks of each page most relevant
+ * to the hypothesis, instead of just the first N characters.
+ */
+const extractTavily = traceable(
+  async (urls, query) => {
+    if (!urls.length) return new Map();
+    const response = await fetch("https://api.tavily.com/extract", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        urls: urls.slice(0, 20),
+        query,
+        chunks_per_source: 3,
+        extract_depth: "basic",
+        format: "markdown"
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Tavily extract failed: ${JSON.stringify(data)}`);
+    }
+    return new Map((data.results || []).map((r) => [r.url, r.raw_content]));
+  },
+  { name: "tavily_extract", run_type: "retriever" }
+);
+
+// NEW: fill in raw_content for any sources that don't have it yet
+async function enrichSources(sources, hypothesis) {
+  const needed = sources.filter((s) => !s.raw_content).map((s) => s.url);
+  if (!needed.length) return sources;
+  try {
+    const extracted = await extractTavily(needed, hypothesis);
+    return sources.map((s) =>
+      extracted.has(s.url) ? { ...s, raw_content: extracted.get(s.url) } : s
+    );
+  } catch (error) {
+    console.error("Extract failed, falling back to snippets:", error);
+    return sources;
+  }
+}
+
+// NEW: drop duplicate URLs and renumber source ids 1..N
+function dedupeByUrl(sources) {
+  const seen = new Set();
+  return sources
+    .filter((s) => (seen.has(s.url) ? false : seen.add(s.url)))
+    .map((s, i) => ({ ...s, id: i + 1 }));
+}
 
 const callUltraJSON = traceable(
   async (systemPrompt, userPrompt, maxTokens) => {
@@ -240,8 +294,12 @@ object: {"queries": ["...", "..."]}`,
       content: source.content,
       score: source.score,
       favicon: source.favicon || null,
-      raw_content: source.raw_content || null
+      raw_content: null
     }));
+
+    // NEW: remove duplicate URLs, then extract relevant chunks
+    sources = dedupeByUrl(sources);
+    sources = await enrichSources(sources, hypothesis);
 
     await logActivity(
       `Queried live evidence for "${hypothesis}" (${sources.length} sources)`
@@ -287,9 +345,11 @@ angle. Respond with ONLY a JSON object:
           content: source.content,
           score: source.score,
           favicon: source.favicon || null,
-          raw_content: source.raw_content || null
+          raw_content: null
         }));
-        sources = sources.concat(newSources);
+        // CHANGED: dedupe, then extract only the new URLs
+        sources = dedupeByUrl(sources.concat(newSources));
+        sources = await enrichSources(sources, hypothesis);
       } catch (error) {
         console.error("Follow-up search failed:", error);
       }
