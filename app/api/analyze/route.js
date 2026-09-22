@@ -82,7 +82,7 @@ const searchTavily = traceable(
       throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
     }
     return data.results || [];
-  },
+
   { name: "tavily_search", run_type: "retriever" }
 );
 
