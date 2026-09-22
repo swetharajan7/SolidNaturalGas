@@ -28,13 +28,21 @@ const searchTavily = traceable(
         Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
         "Content-Type": "application/json"
       },
-             body: JSON.stringify({
+                  body: JSON.stringify({
         query,
         search_depth: "advanced",
-                max_results: 4,
+        max_results: 4,
         time_range: "month",
         include_answer: false,
-        include_raw_content: "markdown"
+        include_raw_content: "markdown",
+        exclude_domains: [
+          "cotinsight.com",
+          "brentchart.com",
+          "globaloilshock.com",
+          "investopedia.com",
+          "wikipedia.org"
+        ]
+      })
       })
     });
     const data = await response.json();
