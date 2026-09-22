@@ -20,19 +20,36 @@ async function logActivity(message) {
   }
 }
 
+const TAVILY_CACHE_TTL_SECONDS = 300;
+
+function tavilyCacheKey(query, params) {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 150);
+  return `tavily:cache:${params.search_depth}:${params.time_range || "none"}:${normalized}`;
+}
+
 const searchTavily = traceable(
   async (query) => {
+    const params = { search_depth: "advanced", time_range: "month" };
+    const cacheKey = tavilyCacheKey(query, params);
+
+    try {
+      const cached = await kv.get(cacheKey);
+      if (cached) return cached;
+    } catch (error) {
+      console.error("Tavily cache read failed:", error);
+    }
+
     const response = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
         "Content-Type": "application/json"
       },
-                  body: JSON.stringify({
+      body: JSON.stringify({
         query,
-        search_depth: "advanced",
+        search_depth: params.search_depth,
         max_results: 4,
-        time_range: "month",
+        time_range: params.time_range,
         include_answer: false,
         include_raw_content: "markdown",
         exclude_domains: [
@@ -43,7 +60,23 @@ const searchTavily = traceable(
           "wikipedia.org"
         ]
       })
-      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
+    }
+    const results = data.results || [];
+
+    try {
+      await kv.set(cacheKey, results, { ex: TAVILY_CACHE_TTL_SECONDS });
+    } catch (error) {
+      console.error("Tavily cache write failed:", error);
+    }
+
+    return results;
+  },
+  { name: "tavily_search", run_type: "retriever" }
+);
     });
     const data = await response.json();
     if (!response.ok) {
