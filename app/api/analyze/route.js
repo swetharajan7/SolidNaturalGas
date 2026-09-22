@@ -77,14 +77,6 @@ const searchTavily = traceable(
   },
   { name: "tavily_search", run_type: "retriever" }
 );
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
-    }
-    return data.results || [];
-
-  { name: "tavily_search", run_type: "retriever" }
-);
 
 const callUltraJSON = traceable(
   async (systemPrompt, userPrompt, maxTokens) => {
