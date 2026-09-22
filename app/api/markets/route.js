@@ -24,8 +24,8 @@ const searchTavily = traceable(
       body: JSON.stringify({
         query,
         search_depth: "basic",
-        max_results: 4,
-        days: 30,
+               max_results: 4,
+        time_range: "week",
         include_answer: false,
         include_raw_content: false
       })
