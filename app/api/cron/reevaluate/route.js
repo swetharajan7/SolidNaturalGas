@@ -25,24 +25,53 @@ const DEFAULT_HYPOTHESES = [
   "European LNG spot prices will strengthen over the next 30 days."
 ];
 
+const TAVILY_CACHE_TTL_SECONDS = 300;
+
+function tavilyCacheKey(query, params) {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 150);
+  return `tavily:cache:${params.search_depth}:${params.time_range || "none"}:${normalized}`;
+}
+
 const searchTavily = traceable(
   async (query) => {
+    const params = { search_depth: "basic", time_range: "month" };
+    const cacheKey = tavilyCacheKey(query, params);
+
+    try {
+      const cached = await kv.get(cacheKey);
+      if (cached) {
+        return { response: { ok: true }, data: cached };
+      }
+    } catch (error) {
+      console.error("Tavily cache read failed:", error);
+    }
+
     const response = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
         "Content-Type": "application/json"
       },
-           body: JSON.stringify({
+      body: JSON.stringify({
         query,
-        search_depth: "basic",
+        search_depth: params.search_depth,
         max_results: 5,
-        time_range: "month",
+        time_range: params.time_range,
         include_answer: false,
         include_raw_content: false
       })
     });
-    return { response, data: await response.json() };
+    const data = await response.json();
+
+    if (response.ok) {
+      try {
+        await kv.set(cacheKey, data, { ex: TAVILY_CACHE_TTL_SECONDS });
+      } catch (error) {
+        console.error("Tavily cache write failed:", error);
+      }
+    }
+
+    return { response, data };
   },
   { name: "tavily_search", run_type: "retriever" }
 );
