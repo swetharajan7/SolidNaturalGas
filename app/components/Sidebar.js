@@ -8,7 +8,8 @@ import { usePathname } from "next/navigation";
  * CHANGE THIS if your logo lives somewhere else.
  * Copy the src from the <img> in your old NavBar.js.
  */
-const LOGO_SRC = "/logo.png";
+const LOGO_SRC =           <Image src="/logo.png" alt="Solid Natural Gas" width={34} height={34} priority />
+;
 
 export const SIDEBAR_WIDTH = 260;
 
