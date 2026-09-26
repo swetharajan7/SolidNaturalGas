@@ -15,13 +15,32 @@ function timeAgo(isoString) {
   return `${days}d ago`;
 }
 
-const MARKET_LABELS = {
-  henryHub: { name: "Henry Hub", unit: "$/MMBtu" },
-  ttf: { name: "TTF", unit: "€/MWh" },
-  jkm: { name: "JKM", unit: "$/MMBtu" },
-  brent: { name: "Brent", unit: "$/bbl" },
-  wti: { name: "WTI", unit: "$/bbl" }
-};
+const MARKET_GROUPS = [
+  {
+    heading: "North America",
+    items: {
+      henryHub: { name: "Henry Hub", unit: "$/MMBtu", symbol: "$" },
+      waha: { name: "Waha", unit: "$/MMBtu", symbol: "$" },
+      houstonShipChannel: { name: "Houston Ship Ch.", unit: "$/MMBtu", symbol: "$" },
+      aeco: { name: "AECO (NIT)", unit: "C$/GJ", symbol: "C$" }
+    }
+  },
+  {
+    heading: "Europe & Asia-Pacific",
+    items: {
+      ttf: { name: "TTF", unit: "\u20AC/MWh", symbol: "\u20AC" },
+      jkm: { name: "JKM", unit: "$/MMBtu", symbol: "$" },
+      wallumbilla: { name: "Wallumbilla", unit: "A$/GJ", symbol: "A$" }
+    }
+  },
+  {
+    heading: "Crude",
+    items: {
+      brent: { name: "Brent", unit: "$/bbl", symbol: "$" },
+      wti: { name: "WTI", unit: "$/bbl", symbol: "$" }
+    }
+  }
+];
 
 export default function Home() {
   const [hypothesis, setHypothesis] = useState(
@@ -370,31 +389,42 @@ export default function Home() {
               {marketsError ? (
                 <div style={{ fontSize: "13px", color: "#8a4b4b" }}>{marketsError}</div>
               ) : markets ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "14px" }}>
-                  {Object.entries(MARKET_LABELS).map(([key, { name, unit }]) => {
-                    const entry = markets[key];
-                    return (
-                      <div key={key}>
-                        <div style={{ fontSize: "11px", fontWeight: "700", letterSpacing: "0.04em", color: "#7a8593", marginBottom: "2px" }}>
-                          {name.toUpperCase()}
-                        </div>
-                        <div style={{ fontSize: "18px", fontWeight: "700", color: "#0B1F3B" }}>
-                          {entry && entry.value != null ? (
-                            <>
-                              {unit.startsWith("€") ? "€" : "$"}
-                              {Number(entry.value).toFixed(2)}
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#9aa4b0" }}>
-                          {unit}
-                          {entry?.date ? ` · ${entry.date}` : ""}
-                        </div>
+                <div>
+                  {MARKET_GROUPS.map((group, gi) => (
+                    <div key={group.heading} style={{ marginTop: gi === 0 ? 0 : "16px" }}>
+                      <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "0.08em", color: "#9aa4b0", marginBottom: "8px" }}>
+                        {group.heading.toUpperCase()}
                       </div>
-                    );
-                  })}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: "12px" }}>
+                        {Object.entries(group.items).map(([key, { name, unit, symbol }]) => {
+                          const entry = markets[key];
+                          const value = entry && entry.value != null ? Number(entry.value) : null;
+                          return (
+                            <div key={key}>
+                              <div style={{ fontSize: "11px", fontWeight: "700", letterSpacing: "0.04em", color: "#7a8593", marginBottom: "2px" }}>
+                                {name.toUpperCase()}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "18px",
+                                  fontWeight: "700",
+                                  color: value != null && value < 0 ? "#a13a2c" : "#0B1F3B"
+                                }}
+                              >
+                                {value != null
+                                  ? `${value < 0 ? "-" : ""}${symbol}${Math.abs(value).toFixed(2)}`
+                                  : "\u2014"}
+                              </div>
+                              <div style={{ fontSize: "10px", color: "#9aa4b0" }}>
+                                {unit}
+                                {entry?.date ? ` \u00B7 ${entry.date}` : ""}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div style={{ fontSize: "13px", color: "#7a8593" }}>Loading...</div>
