@@ -21,8 +21,8 @@ function tavilyCacheKey(query, params) {
 }
 
 const searchTavily = traceable(
-  async (query) => {
-    const params = { search_depth: "basic", topic: "finance", time_range: "week" };
+  async (query, timeRange = "month") => {
+    const params = { search_depth: "basic", topic: "finance", time_range: timeRange };
     const cacheKey = tavilyCacheKey(query, params);
 
     try {
@@ -42,7 +42,7 @@ const searchTavily = traceable(
         query,
         search_depth: params.search_depth,
         topic: params.topic,
-        max_results: 4,
+        max_results: 5,
         time_range: params.time_range,
         include_answer: "basic",
         include_raw_content: false
@@ -74,7 +74,7 @@ const searchTavily = traceable(
  */
 const BENCHMARKS = {
   henryHub: {
-    query: "Henry Hub natural gas spot price today $/MMBtu",
+    queries: ["Henry Hub natural gas spot price today $/MMBtu"],
     label: "HENRYHUB",
     unit: "US dollars per MMBtu",
     min: 0.5,
@@ -82,7 +82,10 @@ const BENCHMARKS = {
     note: "A spot price, NOT working gas in storage (which is ~3,000 Bcf) and NOT a futures index level."
   },
   waha: {
-    query: "Waha hub natural gas spot price Permian today $/MMBtu",
+    queries: [
+      "Waha hub natural gas spot price today",
+      "Permian Waha natural gas price $/MMBtu this week"
+    ],
     label: "WAHA",
     unit: "US dollars per MMBtu",
     min: -15,
@@ -90,7 +93,10 @@ const BENCHMARKS = {
     note: "West Texas/Permian hub. Can legitimately trade NEGATIVE when takeaway capacity is constrained, so a negative value here is valid."
   },
   houstonShipChannel: {
-    query: "Houston Ship Channel natural gas spot price today $/MMBtu",
+    queries: [
+      "Houston Ship Channel natural gas spot price today",
+      "Houston Ship Channel gas price $/MMBtu Gulf Coast this week"
+    ],
     label: "HOUSTONSHIPCHANNEL",
     unit: "US dollars per MMBtu",
     min: 0.5,
@@ -98,7 +104,11 @@ const BENCHMARKS = {
     note: "Gulf Coast hub near the LNG export terminals. Usually trades close to Henry Hub."
   },
   aeco: {
-    query: "AECO NIT Alberta natural gas spot price today C$/GJ",
+    queries: [
+      "AECO natural gas price today Alberta",
+      "Alberta NIT AECO C spot gas price C$/GJ latest"
+    ],
+    timeRange: "month",
     label: "AECO",
     unit: "Canadian dollars per GJ",
     min: -5,
@@ -106,7 +116,7 @@ const BENCHMARKS = {
     note: "Western Canadian benchmark, also called Alberta NIT. Usually quoted in C$/GJ; if the source quotes US$/MMBtu, still report the number as stated."
   },
   ttf: {
-    query: "Dutch TTF natural gas price today euros per MWh",
+    queries: ["Dutch TTF natural gas price today euros per MWh"],
     label: "TTF",
     unit: "euros per MWh",
     min: 2,
@@ -114,7 +124,10 @@ const BENCHMARKS = {
     note: "Quoted in EUR/MWh, not in dollars and not per MMBtu."
   },
   jkm: {
-    query: "JKM LNG spot price today Asia $/MMBtu",
+    queries: [
+      "JKM LNG spot price this week $/MMBtu",
+      "Platts JKM Northeast Asia LNG spot assessment latest price"
+    ],
     label: "JKM",
     unit: "US dollars per MMBtu",
     min: 2,
@@ -122,7 +135,11 @@ const BENCHMARKS = {
     note: "An LNG spot assessment, not a cargo volume or a shipping rate."
   },
   wallumbilla: {
-    query: "Wallumbilla LNG netback price Australia A$/GJ latest",
+    queries: [
+      "ACCC LNG netback price Wallumbilla latest A$/GJ",
+      "Wallumbilla gas price per GJ Australia latest"
+    ],
+    timeRange: "month",
     label: "WALLUMBILLA",
     unit: "Australian dollars per GJ",
     min: 1,
@@ -130,7 +147,7 @@ const BENCHMARKS = {
     note: "The ACCC LNG netback series at Wallumbilla, quoted in A$/GJ. This is a netback, not a spot cargo price."
   },
   brent: {
-    query: "Brent crude oil price today $ per barrel",
+    queries: ["Brent crude oil price today $ per barrel"],
     label: "BRENT",
     unit: "US dollars per barrel",
     min: 20,
@@ -138,7 +155,7 @@ const BENCHMARKS = {
     note: "A per-barrel price, not a production volume."
   },
   wti: {
-    query: "WTI crude oil price today $ per barrel",
+    queries: ["WTI crude oil price today $ per barrel"],
     label: "WTI",
     unit: "US dollars per barrel",
     min: 15,
@@ -224,7 +241,24 @@ export async function GET() {
 
     const entries = Object.entries(BENCHMARKS);
     const resultsByBenchmark = await Promise.all(
-      entries.map(([, spec]) => searchTavily(spec.query))
+      entries.map(async ([, spec]) => {
+        const payloads = await Promise.all(
+          spec.queries.map((q) =>
+            searchTavily(q, spec.timeRange || "month").catch((err) => {
+              console.error(`Market search failed for "${q}":`, err);
+              return { answer: null, results: [] };
+            })
+          )
+        );
+        // merge the query results into one block, dropping duplicate URLs
+        const seen = new Set();
+        return {
+          answer: payloads.map((p) => p.answer).filter(Boolean).join(" "),
+          results: payloads
+            .flatMap((p) => p.results)
+            .filter((r) => (seen.has(r.url) ? false : seen.add(r.url)))
+        };
+      })
     );
 
     const evidenceBlocks = entries
