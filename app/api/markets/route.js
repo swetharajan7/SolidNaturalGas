@@ -17,12 +17,12 @@ const TAVILY_CACHE_TTL_SECONDS = 300;
 
 function tavilyCacheKey(query, params) {
   const normalized = query.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 150);
-  return `tavily:cache:${params.search_depth}:${params.time_range || "none"}:${normalized}`;
+  return `tavily:cache:${params.search_depth}:${params.topic}:${params.time_range || "none"}:${normalized}`;
 }
 
 const searchTavily = traceable(
   async (query) => {
-    const params = { search_depth: "basic", time_range: "week" };
+    const params = { search_depth: "basic", topic: "finance", time_range: "week" };
     const cacheKey = tavilyCacheKey(query, params);
 
     try {
@@ -41,6 +41,7 @@ const searchTavily = traceable(
       body: JSON.stringify({
         query,
         search_depth: params.search_depth,
+        topic: params.topic,
         max_results: 4,
         time_range: params.time_range,
         include_answer: false,
@@ -65,6 +66,55 @@ const searchTavily = traceable(
   { name: "tavily_search", run_type: "retriever" }
 );
 
+/*
+ * Each benchmark's unit and a plausible trading range.
+ * The range is deliberately wide — it exists to catch category errors
+ * (a storage figure in Bcf, an index level, a percentage), not to
+ * second-guess a real market move.
+ */
+const BENCHMARKS = {
+  henryHub: {
+    query: "Henry Hub natural gas spot price today $/MMBtu",
+    label: "HENRYHUB",
+    unit: "US dollars per MMBtu",
+    min: 0.5,
+    max: 30,
+    note: "A spot price, NOT working gas in storage (which is ~3,000 Bcf) and NOT a futures index level."
+  },
+  ttf: {
+    query: "Dutch TTF natural gas price today euros per MWh",
+    label: "TTF",
+    unit: "euros per MWh",
+    min: 2,
+    max: 200,
+    note: "Quoted in EUR/MWh, not in dollars and not per MMBtu."
+  },
+  jkm: {
+    query: "JKM LNG spot price today Asia $/MMBtu",
+    label: "JKM",
+    unit: "US dollars per MMBtu",
+    min: 2,
+    max: 100,
+    note: "An LNG spot assessment, not a cargo volume or a shipping rate."
+  },
+  brent: {
+    query: "Brent crude oil price today $ per barrel",
+    label: "BRENT",
+    unit: "US dollars per barrel",
+    min: 20,
+    max: 200,
+    note: "A per-barrel price, not a production volume."
+  },
+  wti: {
+    query: "WTI crude oil price today $ per barrel",
+    label: "WTI",
+    unit: "US dollars per barrel",
+    min: 15,
+    max: 200,
+    note: "A per-barrel price. WTI normally trades a few dollars BELOW Brent."
+  }
+};
+
 function formatEvidence(label, results) {
   if (!results.length) return `${label}: No live sources were returned.`;
   return results
@@ -83,7 +133,7 @@ const callNemotron = traceable(
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: process.env.NEBIUS_MODEL,
+          model: process.env.NEBIUS_MODEL_FAST || process.env.NEBIUS_MODEL,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -99,42 +149,73 @@ const callNemotron = traceable(
   { name: "nemotron_markets_extraction", run_type: "llm" }
 );
 
+/*
+ * Last line of defence: a number outside its benchmark's plausible range
+ * is dropped rather than shown. A wrong price is worse than no price.
+ */
+function validate(parsed) {
+  const markets = {};
+  const rejected = [];
+
+  for (const [key, spec] of Object.entries(BENCHMARKS)) {
+    const entry = parsed?.[key];
+    const value = typeof entry?.value === "number" ? entry.value : null;
+
+    if (value === null || Number.isNaN(value)) {
+      markets[key] = { value: null, date: null };
+      continue;
+    }
+
+    if (value < spec.min || value > spec.max) {
+      rejected.push(`${key}=${value} (expected ${spec.min}-${spec.max} ${spec.unit})`);
+      markets[key] = { value: null, date: null };
+      continue;
+    }
+
+    markets[key] = { value, date: entry.date ?? null };
+  }
+
+  return { markets, rejected };
+}
+
 export async function GET() {
   try {
     /*
      * STEP 1
-     * Five targeted Tavily searches, one per benchmark, run in parallel.
-     * Targeted queries beat one broad query for accuracy — a single
-     * "latest energy prices" search risks the model mixing up which
-     * number belongs to which benchmark.
+     * One targeted Tavily search per benchmark, run in parallel.
      */
 
-    const queries = {
-      henryHub: "Henry Hub natural gas spot price today $/MMBtu",
-      ttf: "Dutch TTF natural gas price today euros per MWh",
-      jkm: "JKM LNG spot price today Asia $/MMBtu",
-      brent: "Brent crude oil price today $ per barrel",
-      wti: "WTI crude oil price today $ per barrel"
-    };
-
-    const entries = Object.entries(queries);
+    const entries = Object.entries(BENCHMARKS);
     const resultsByBenchmark = await Promise.all(
-      entries.map(([key, query]) => searchTavily(query))
+      entries.map(([, spec]) => searchTavily(spec.query))
     );
 
     const evidenceBlocks = entries
-      .map(([key], i) => formatEvidence(key.toUpperCase(), resultsByBenchmark[i]))
+      .map(([, spec], i) => formatEvidence(spec.label, resultsByBenchmark[i]))
       .join("\n\n---\n\n");
 
     /*
      * STEP 2
-     * One Nemotron call extracts all five prices as structured JSON,
-     * each labeled with which evidence block it came from.
+     * One Nemotron call extracts all five prices as structured JSON.
      */
+
+    const unitGuide = entries
+      .map(([key, spec]) =>
+        `- ${key} (block ${spec.label}): ${spec.unit}, normally between ${spec.min} and ${spec.max}. ${spec.note}`
+      )
+      .join("\n");
 
     const systemPrompt = `You extract current energy benchmark prices from search
 evidence. Evidence is grouped into blocks labeled HENRYHUB, TTF, JKM, BRENT,
 and WTI — use only the block matching each benchmark, never cross-contaminate.
+
+Each benchmark has an expected unit and range:
+${unitGuide}
+
+A number outside its expected range is almost certainly a different quantity
+(storage volumes, index levels, production figures, percentages, annual
+averages). Never report such a number as a price — return null instead.
+
 Respond with ONLY a JSON object, no markdown, no preamble, in exactly this shape:
 {
   "henryHub": {"value": <number or null>, "date": "<date as stated, or null>"},
@@ -180,10 +261,21 @@ older reference price. Never invent a number.`;
       );
     }
 
+    /*
+     * STEP 3
+     * Validate before anything reaches the page.
+     */
+
+    const { markets, rejected } = validate(parsed);
+
+    if (rejected.length) {
+      console.error("Rejected implausible market values:", rejected.join("; "));
+    }
+
     await logActivity("Markets updated: Henry Hub, TTF, JKM, Brent, WTI");
 
     return Response.json({
-      markets: parsed,
+      markets,
       updatedAt: new Date().toISOString()
     });
 
