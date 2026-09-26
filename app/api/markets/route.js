@@ -81,6 +81,30 @@ const BENCHMARKS = {
     max: 30,
     note: "A spot price, NOT working gas in storage (which is ~3,000 Bcf) and NOT a futures index level."
   },
+  waha: {
+    query: "Waha hub natural gas spot price Permian today $/MMBtu",
+    label: "WAHA",
+    unit: "US dollars per MMBtu",
+    min: -15,
+    max: 25,
+    note: "West Texas/Permian hub. Can legitimately trade NEGATIVE when takeaway capacity is constrained, so a negative value here is valid."
+  },
+  houstonShipChannel: {
+    query: "Houston Ship Channel natural gas spot price today $/MMBtu",
+    label: "HOUSTONSHIPCHANNEL",
+    unit: "US dollars per MMBtu",
+    min: 0.5,
+    max: 30,
+    note: "Gulf Coast hub near the LNG export terminals. Usually trades close to Henry Hub."
+  },
+  aeco: {
+    query: "AECO NIT Alberta natural gas spot price today C$/GJ",
+    label: "AECO",
+    unit: "Canadian dollars per GJ",
+    min: -5,
+    max: 30,
+    note: "Western Canadian benchmark, also called Alberta NIT. Usually quoted in C$/GJ; if the source quotes US$/MMBtu, still report the number as stated."
+  },
   ttf: {
     query: "Dutch TTF natural gas price today euros per MWh",
     label: "TTF",
@@ -96,6 +120,14 @@ const BENCHMARKS = {
     min: 2,
     max: 100,
     note: "An LNG spot assessment, not a cargo volume or a shipping rate."
+  },
+  wallumbilla: {
+    query: "Wallumbilla LNG netback price Australia A$/GJ latest",
+    label: "WALLUMBILLA",
+    unit: "Australian dollars per GJ",
+    min: 1,
+    max: 60,
+    note: "The ACCC LNG netback series at Wallumbilla, quoted in A$/GJ. This is a netback, not a spot cargo price."
   },
   brent: {
     query: "Brent crude oil price today $ per barrel",
@@ -166,7 +198,7 @@ function validate(parsed) {
       continue;
     }
 
-    if (value < spec.min || value > spec.max) {
+    if (!Number.isFinite(value) || value < spec.min || value > spec.max) {
       rejected.push(`${key}=${value} (expected ${spec.min}-${spec.max} ${spec.unit})`);
       markets[key] = { value: null, date: null };
       continue;
@@ -272,7 +304,7 @@ older reference price. Never invent a number.`;
       console.error("Rejected implausible market values:", rejected.join("; "));
     }
 
-    await logActivity("Markets updated: Henry Hub, TTF, JKM, Brent, WTI");
+    await logActivity(`Markets updated: ${Object.keys(BENCHMARKS).length} benchmarks`);
 
     return Response.json({
       markets,
