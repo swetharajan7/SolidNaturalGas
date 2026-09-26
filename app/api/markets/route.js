@@ -44,7 +44,7 @@ const searchTavily = traceable(
         topic: params.topic,
         max_results: 4,
         time_range: params.time_range,
-        include_answer: false,
+        include_answer: "basic",
         include_raw_content: false
       })
     });
@@ -53,7 +53,7 @@ const searchTavily = traceable(
     if (!response.ok) {
       throw new Error(`Tavily failed for "${query}": ${JSON.stringify(data)}`);
     }
-    const results = data.results || [];
+    const results = { answer: data.answer || null, results: data.results || [] };
 
     try {
       await kv.set(cacheKey, results, { ex: TAVILY_CACHE_TTL_SECONDS });
@@ -147,11 +147,16 @@ const BENCHMARKS = {
   }
 };
 
-function formatEvidence(label, results) {
-  if (!results.length) return `${label}: No live sources were returned.`;
-  return results
-    .map((r) => `${label} SOURCE: "${r.title}"\n${r.content}`)
-    .join("\n\n");
+function formatEvidence(label, payload) {
+  const results = payload?.results || [];
+  const answer = payload?.answer;
+  if (!results.length && !answer) return `${label}: No live sources were returned.`;
+  const parts = [];
+  if (answer) parts.push(`${label} SUMMARY: ${answer}`);
+  parts.push(
+    ...results.map((r) => `${label} SOURCE: "${r.title}"\n${r.content}`)
+  );
+  return parts.join("\n\n");
 }
 
 const callNemotron = traceable(
@@ -170,7 +175,7 @@ const callNemotron = traceable(
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
           ],
-          max_tokens: 1200,
+          max_tokens: 1600,
           temperature: 0,
           reasoning_effort: "low"
         })
@@ -256,10 +261,12 @@ Respond with ONLY a JSON object, no markdown, no preamble, in exactly this shape
   "brent": {"value": <number or null>, "date": "<date as stated, or null>"},
   "wti": {"value": <number or null>, "date": "<date as stated, or null>"}
 }
-Only extract a price if its date is clearly stated as being within the last
-10 days. If a benchmark's evidence block has no price meeting that freshness
-bar, use null for that benchmark's value and date rather than reporting an
-older reference price. Never invent a number.`;
+Report the most recent price you can find in each block. Prefer a price whose
+date is stated; if no date is given but the source is clearly reporting a
+current price, still report the value and set "date" to null. Use null for
+BOTH value and date only when the block contains no usable current price at
+all, or when the only numbers present are clearly a different quantity.
+Never invent a number.`;
 
     const userPrompt = `Evidence:\n\n${evidenceBlocks}\n\nExtract all five prices.`;
 
@@ -304,10 +311,17 @@ older reference price. Never invent a number.`;
       console.error("Rejected implausible market values:", rejected.join("; "));
     }
 
+    const found = Object.values(markets).filter((m) => m.value !== null).length;
+    if (found === 0) {
+      console.error("No prices extracted. Raw model output:", raw.slice(0, 2000));
+    }
+
     await logActivity(`Markets updated: ${Object.keys(BENCHMARKS).length} benchmarks`);
 
     return Response.json({
       markets,
+      rejected,
+      extracted: Object.values(markets).filter((m) => m.value !== null).length,
       updatedAt: new Date().toISOString()
     });
 
