@@ -7,6 +7,10 @@
     {
       "path": "/api/vessels/poll",
       "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/cron/markets",
+      "schedule": "15 */6 * * *"
     }
   ]
 }
