@@ -103,7 +103,13 @@ export default function Home() {
           setMarketsError(data.error || "Unable to load market prices.");
           return;
         }
-        setMarkets(data.markets || null);
+        if (data.pending || !data.markets) {
+          setMarketsError(
+            data.message || "Prices are being gathered — the first snapshot is on its way."
+          );
+          return;
+        }
+        setMarkets(data.markets);
         setMarketsUpdatedAt(data.updatedAt || null);
       } catch (error) {
         console.error("Markets load failed:", error);
