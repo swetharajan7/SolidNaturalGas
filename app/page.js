@@ -53,6 +53,7 @@ export default function Home() {
   const [confidence, setConfidence] = useState(null);
   const [confidenceDelta, setConfidenceDelta] = useState(0);
   const [sources, setSources] = useState([]);
+  const [steps, setSteps] = useState([]);
   const [dashboard, setDashboard] = useState([]);
 
   const [markets, setMarkets] = useState(null);
@@ -131,23 +132,61 @@ export default function Home() {
     setResult("");
     setConfidence(null);
     setConfidenceDelta(0);
+    setSources([]);
+    setSteps([]);
 
     try {
-      const response = await fetch("/api/analyze", {
+      const response = await fetch("/api/analyze/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hypothesis })
       });
 
-      const data = await response.json();
-
-      setResult(data.result || data.error || "No analysis was returned.");
-
-      if (typeof data.confidence === "number") {
-        setConfidence(data.confidence);
-        setConfidenceDelta(typeof data.confidenceDelta === "number" ? data.confidenceDelta : 0);
+      if (!response.body) {
+        setResult("Unable to reach the analysis service.");
+        setLoading(false);
+        return;
       }
-      setSources(data.sources || []);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      // Each line is one JSON object: a step, the final result, or an error.
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let payload;
+          try {
+            payload = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (payload.kind === "step") {
+            setSteps((previous) => [...previous, payload]);
+          } else if (payload.kind === "result") {
+            setResult(payload.result || "No analysis was returned.");
+            if (typeof payload.confidence === "number") {
+              setConfidence(payload.confidence);
+              setConfidenceDelta(
+                typeof payload.confidenceDelta === "number" ? payload.confidenceDelta : 0
+              );
+            }
+            setSources(payload.sources || []);
+          } else if (payload.kind === "error") {
+            setResult(payload.error);
+          }
+        }
+      }
+
       loadDashboard();
       loadActivity();
       loadNotebook();
@@ -277,8 +316,60 @@ export default function Home() {
                   color: "white"
                 }}
               >
-                {loading ? "Researching live evidence..." : "Research"}
+                {loading
+                  ? steps.length > 0
+                    ? steps[steps.length - 1].message
+                    : "Starting the agent..."
+                  : "Research"}
               </button>
+
+              {steps.length > 0 && (
+                <div style={{ marginTop: "24px", padding: "16px 18px", background: "#f7f9fb", border: "1px solid #e4e9ef", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "700", letterSpacing: "0.1em", color: "#7a8593", marginBottom: "12px" }}>
+                    AGENT RUN TRACE
+                  </div>
+
+                  {steps.map((step, i) => {
+                    const isLast = i === steps.length - 1;
+                    const pending = loading && isLast;
+                    return (
+                      <div key={`${step.at}-${i}`} style={{ display: "flex", gap: "10px", padding: "5px 0" }}>
+                        <span
+                          style={{
+                            width: "7px",
+                            height: "7px",
+                            borderRadius: "50%",
+                            marginTop: "6px",
+                            flexShrink: 0,
+                            background: pending ? "#f59e0b" : "#1e7d34"
+                          }}
+                        />
+                        <div style={{ fontSize: "13px", lineHeight: "1.5", color: "#35454b" }}>
+                          {step.message}
+                          {step.queries && (
+                            <div style={{ marginTop: "4px" }}>
+                              {step.queries.map((query, qi) => (
+                                <div key={qi} style={{ fontSize: "12px", color: "#64748b", paddingLeft: "10px" }}>
+                                  → {query}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {step.titles && (
+                            <div style={{ marginTop: "4px" }}>
+                              {step.titles.map((title, ti) => (
+                                <div key={ti} style={{ fontSize: "12px", color: "#64748b", paddingLeft: "10px" }}>
+                                  · {title}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {result && (
                 <div style={{ marginTop: "30px", paddingTop: "24px", borderTop: "1px solid #eef1f4" }}>
