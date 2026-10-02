@@ -54,6 +54,15 @@ export default function Home() {
   const [confidenceDelta, setConfidenceDelta] = useState(0);
   const [sources, setSources] = useState([]);
   const [steps, setSteps] = useState([]);
+
+  const [deskQuestion, setDeskQuestion] = useState(
+    "Is the US-Europe arb open, and what would close it?"
+  );
+  const [deskLoading, setDeskLoading] = useState(false);
+  const [deskSteps, setDeskSteps] = useState([]);
+  const [deskAnswer, setDeskAnswer] = useState("");
+  const [deskFindings, setDeskFindings] = useState([]);
+  const [deskSources, setDeskSources] = useState([]);
   const [dashboard, setDashboard] = useState([]);
 
   const [markets, setMarkets] = useState(null);
@@ -127,6 +136,65 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Reads a newline-delimited JSON stream, handing each object to onPayload.
+  async function readStream(url, body, onPayload) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.body) throw new Error("No stream returned.");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          onPayload(JSON.parse(line));
+        } catch {
+          /* ignore a partial line */
+        }
+      }
+    }
+  }
+
+  async function askDesk() {
+    setDeskLoading(true);
+    setDeskSteps([]);
+    setDeskAnswer("");
+    setDeskFindings([]);
+    setDeskSources([]);
+
+    try {
+      await readStream("/api/desk/stream", { question: deskQuestion }, (payload) => {
+        if (payload.kind === "step") {
+          setDeskSteps((previous) => [...previous, payload]);
+        } else if (payload.kind === "result") {
+          setDeskAnswer(payload.answer || "No answer was returned.");
+          setDeskFindings(payload.findings || []);
+          setDeskSources(payload.sources || []);
+        } else if (payload.kind === "error") {
+          setDeskAnswer(payload.error);
+        }
+      });
+      loadActivity();
+      loadDashboard();
+    } catch {
+      setDeskAnswer("Unable to reach the desk.");
+    }
+
+    setDeskLoading(false);
+  }
+
   async function analyze() {
     setLoading(true);
     setResult("");
@@ -195,6 +263,18 @@ export default function Home() {
     }
 
     setLoading(false);
+  }
+
+
+  const AGENT_STYLE = {
+    price: { label: "PRICE", color: "#1e7d34" },
+    research: { label: "RESEARCH", color: "#0B1F3B" },
+    flows: { label: "FLOWS", color: "#8a5a00" }
+  };
+
+  function agentOf(message) {
+    const match = /^(price|research|flows) agent/i.exec(message || "");
+    return match ? match[1].toLowerCase() : null;
   }
 
   const cardStyle = {
@@ -276,6 +356,174 @@ export default function Home() {
                       <span style={{ color: "#e2e8f0" }}>{entry.message}</span>
                     </div>
                   ))}
+                </div>
+              )}
+            </section>
+
+            <section style={{ ...cardStyle, marginBottom: "24px" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "8px" }}>
+                <h1 style={{ fontSize: "26px", margin: 0 }}>Ask the desk</h1>
+                <span style={{ fontSize: "11px", fontWeight: "700", letterSpacing: "0.08em", color: "#7a8593" }}>
+                  3 SPECIALIST AGENTS
+                </span>
+              </div>
+              <p style={{ color: "#586474", lineHeight: "1.6", marginTop: 0 }}>
+                A question is routed across a price agent, a research agent and a flows agent. Each works its own
+                corner — prices are computed, evidence is searched, movement is checked — and a lead analyst integrates
+                the reports.
+              </p>
+
+              <textarea
+                value={deskQuestion}
+                onChange={(e) => setDeskQuestion(e.target.value)}
+                rows={3}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "16px",
+                  fontSize: "16px",
+                  lineHeight: "1.5",
+                  border: "1px solid #b8c3cf",
+                  borderRadius: "8px"
+                }}
+              />
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+                {[
+                  "Is the US-Europe arb open, and what would close it?",
+                  "Where is Permian production stress showing up?",
+                  "Should the next flexible cargo go to Europe or Asia?"
+                ].map((example) => (
+                  <button
+                    key={example}
+                    onClick={() => setDeskQuestion(example)}
+                    style={{
+                      padding: "6px 11px",
+                      fontSize: "12px",
+                      color: "#44546a",
+                      background: "#f7f9fb",
+                      border: "1px solid #e4e9ef",
+                      borderRadius: "14px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={askDesk}
+                disabled={deskLoading}
+                style={{
+                  marginTop: "15px",
+                  padding: "12px 22px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  cursor: deskLoading ? "default" : "pointer",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: "#0B1F3B",
+                  color: "white"
+                }}
+              >
+                {deskLoading
+                  ? deskSteps.length > 0
+                    ? deskSteps[deskSteps.length - 1].message
+                    : "Routing the question..."
+                  : "Ask the desk"}
+              </button>
+
+              {deskSteps.length > 0 && (
+                <div style={{ marginTop: "24px", padding: "16px 18px", background: "#f7f9fb", border: "1px solid #e4e9ef", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "700", letterSpacing: "0.1em", color: "#7a8593", marginBottom: "12px" }}>
+                    DESK TRACE
+                  </div>
+
+                  {deskSteps.map((step, i) => {
+                    const agent = agentOf(step.message);
+                    const style = agent ? AGENT_STYLE[agent] : null;
+                    const pending = deskLoading && i === deskSteps.length - 1;
+                    return (
+                      <div key={`${step.at}-${i}`} style={{ display: "flex", gap: "10px", padding: "5px 0", alignItems: "flex-start" }}>
+                        <span
+                          style={{
+                            width: "7px",
+                            height: "7px",
+                            borderRadius: "50%",
+                            marginTop: "6px",
+                            flexShrink: 0,
+                            background: pending ? "#f59e0b" : style ? style.color : "#64748b"
+                          }}
+                        />
+                        <div style={{ fontSize: "13px", lineHeight: "1.5", color: "#35454b" }}>
+                          {style && (
+                            <span style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "0.06em", color: style.color, marginRight: "6px" }}>
+                              {style.label}
+                            </span>
+                          )}
+                          {step.message}
+                          {step.assignments && (
+                            <div style={{ marginTop: "4px" }}>
+                              {step.assignments.map((a, ai) => (
+                                <div key={ai} style={{ fontSize: "12px", color: "#64748b", paddingLeft: "10px" }}>
+                                  → {a.agent}: {a.task}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {deskAnswer && (
+                <div style={{ marginTop: "26px", paddingTop: "22px", borderTop: "1px solid #eef1f4" }}>
+                  {deskFindings.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
+                      {deskFindings.map((f) => {
+                        const style = AGENT_STYLE[f.agent] || { color: "#64748b", label: f.agent.toUpperCase() };
+                        return (
+                          <div
+                            key={f.agent}
+                            style={{
+                              padding: "6px 11px",
+                              borderRadius: "14px",
+                              fontSize: "12px",
+                              fontWeight: "600",
+                              color: style.color,
+                              border: `1px solid ${style.color}33`,
+                              background: `${style.color}0d`
+                            }}
+                          >
+                            {style.label} · {Math.round((f.confidence || 0) * 100)}%
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <h2 style={{ fontSize: "20px", marginTop: 0 }}>Desk answer</h2>
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: "1.7", fontSize: "16px" }}>{deskAnswer}</div>
+
+                  {deskSources.length > 0 && (
+                    <div style={{ marginTop: "20px" }}>
+                      <div style={{ fontSize: "13px", fontWeight: "700", letterSpacing: "0.06em", color: "#586474", marginBottom: "8px" }}>
+                        SOURCES
+                      </div>
+                      <ul style={{ paddingLeft: "20px", margin: 0 }}>
+                        {deskSources.map((source) => (
+                          <li key={source.id || source.url} style={{ marginBottom: "6px" }}>
+                            <a href={source.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1F3B" }}>
+                              {source.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
