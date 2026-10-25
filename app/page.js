@@ -15,6 +15,10 @@ function timeAgo(isoString) {
   return `${days}d ago`;
 }
 
+// Temporarily hide unverified market benchmark prices in the public demo.
+// Set to true once the market prices have been validated.
+const SHOW_MARKETS = false;
+
 const MARKET_GROUPS = [
   {
     heading: "North America",
@@ -127,7 +131,7 @@ export default function Home() {
       }
     }
 
-    loadMarkets();
+    if (SHOW_MARKETS) loadMarkets();
     loadDashboard();
     loadActivity();
     loadNotebook();
@@ -721,7 +725,7 @@ export default function Home() {
           </div>
 
           <div style={{ flex: "1 1 280px", minWidth: 0 }}>
-            <section style={{ ...cardStyle, marginBottom: "24px" }}>
+            <section style={{ ...cardStyle, marginBottom: "24px", display: SHOW_MARKETS ? undefined : "none" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
                 <div style={sectionLabelStyle}>MARKETS</div>
                 {marketsUpdatedAt && (
